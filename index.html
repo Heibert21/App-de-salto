@@ -26,6 +26,8 @@
 
 <body>
   <div id="app" class="app-container">
+    <!-- Contenedor flotante para notificaciones Toast -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- Encabezado Principal (compacto en móvil) -->
     <header class="app-header">
@@ -81,70 +83,113 @@
               <span id="btn-upload-video-text">Subir Video</span>
             </button>
           </div>
-          <!-- Segunda fila de botones -->
-          <div class="camera-toolbar toolbar-row2">
-            <button id="btn-calibrate" class="btn btn-secondary" disabled>
-              <span class="btn-icon">🎯</span>
-              <span>Fijar Suelo</span>
-            </button>
-            <button id="btn-reset-record" class="btn btn-danger" disabled>
-              <span class="btn-icon">🗑️</span>
-              <span>Borrar Récord</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Dashboard de métricas (horizontal en tablet, vertical en móvil) -->
-      <aside class="dashboard-section">
-        <!-- Récord -->
-        <div class="card stat-card highlight-card">
-          <div class="card-header">
-            <h3>🏆 Récord</h3>
-            <span class="badge-gold">MÁXIMO</span>
-          </div>
-          <div class="big-metric">
-            <span id="max-jump-val">0.0</span>
-            <span class="unit">cm</span>
-          </div>
-          <p class="stat-footer" id="last-jump-time">Esperando primer salto...</p>
-        </div>
-
-        <!-- Datos del Salto -->
-        <div class="card config-card">
-          <div class="card-header">
-            <h3>📊 Datos del Salto</h3>
-          </div>
-          <div class="calibration-status">
-            <div class="status-row">
-              <span>Método:</span>
-              <strong id="method-text">Física (t de vuelo)</strong>
-            </div>
-            <div class="status-row">
-              <span>Tiempo en Aire:</span>
-              <strong id="flight-time-text">-- s</strong>
-            </div>
-            <div class="status-row">
-              <span>Nivel Suelo (Y):</span>
-              <strong id="baseline-y-text">-- px</strong>
+            <!-- Segunda fila de botones -->
+            <div class="camera-toolbar toolbar-row2">
+              <button id="btn-reset-record" class="btn btn-danger" disabled>
+                <span class="btn-icon">🗑️</span>
+                <span>Borrar Récord</span>
+              </button>
             </div>
           </div>
-          <small class="help-text" style="margin-top: 10px; display: block;">
-            Usa <strong>h = g × t² / 8</strong>. No necesita estatura.
-          </small>
-        </div>
+        </section>
 
-        <!-- Guía Rápida -->
+        <!-- Dashboard de métricas (horizontal en tablet, vertical en móvil) -->
+        <aside class="dashboard-section">
+          <!-- Récord -->
+          <div class="card stat-card highlight-card">
+            <div class="card-header">
+              <h3>🏆 Récord</h3>
+              <span class="badge-gold">MÁXIMO</span>
+            </div>
+            <div class="big-metric">
+              <span id="max-jump-val">0.0</span>
+              <span class="unit">cm</span>
+            </div>
+            <p class="stat-footer" id="last-jump-time">Esperando primer salto...</p>
+          </div>
+
+          <!-- Datos del Salto -->
+          <div class="card config-card">
+            <div class="card-header">
+              <h3>📊 Datos del Salto</h3>
+            </div>
+            <div class="calibration-status">
+              <div class="status-row">
+                <span>Método:</span>
+                <strong id="method-text">Física (t de vuelo)</strong>
+              </div>
+              <div class="status-row">
+                <span>Tiempo en Aire:</span>
+                <strong id="flight-time-text">-- s</strong>
+              </div>
+              <div class="status-row">
+                <span>Nivel Suelo (Y):</span>
+                <strong id="baseline-y-text">-- px</strong>
+              </div>
+              <div class="status-row">
+                <span>Señal de Pose:</span>
+                <div id="signal-quality" class="signal-quality-container">
+                  <div class="signal-bars">
+                    <span id="signal-bar-1" class="signal-bar"></span>
+                    <span id="signal-bar-2" class="signal-bar"></span>
+                    <span id="signal-bar-3" class="signal-bar"></span>
+                  </div>
+                  <strong id="signal-label" class="signal-text">—</strong>
+                </div>
+              </div>
+            </div>
+            <small class="help-text" style="margin-top: 10px; display: block;">
+              Usa <strong>h = g × t² / 8</strong>. No necesita estatura.
+            </small>
+          </div>
+
+        <!-- Guía Rápida Interactiva y Visual -->
         <div class="card info-card">
           <div class="card-header">
-            <h3>💡 Guía Rápida</h3>
+            <h3>📖 Pasos para Medir tu Salto</h3>
+            <span class="guide-badge">FÁCIL Y RÁPIDO</span>
           </div>
-          <ol class="steps-list">
-            <li>Apoya el teléfono de pie o pide a alguien que te filme el <strong>cuerpo completo</strong>.</li>
-            <li>Toca <strong>Iniciar Cámara</strong> o sube un <strong>video</strong>.</li>
-            <li>Párate erguido y toca <strong>Fijar Suelo</strong>.</li>
-            <li>¡Salta! La app mide la altura por el <strong>tiempo en el aire</strong>.</li>
-          </ol>
+          <div class="guide-grid">
+            <div class="guide-step-card">
+              <div class="guide-step-header">
+                <span class="step-number">1</span>
+                <span class="step-icon">📱</span>
+                <span class="step-title">Posicionamiento</span>
+              </div>
+              <p class="step-desc">Apoyá tu celular a <strong>2 o 3 metros</strong>. Asegurate de que se vea tu <strong>cuerpo completo</strong> (de pies a cabeza).</p>
+            </div>
+
+            <div class="guide-step-card">
+              <div class="guide-step-header">
+                <span class="step-number">2</span>
+                <span class="step-icon">📹</span>
+                <span class="step-title">Activar Cámara</span>
+              </div>
+              <p class="step-desc">Tocá <strong>Iniciar Cámara</strong>. Verás una silueta fantasma guiándote en la pantalla.</p>
+            </div>
+
+            <div class="guide-step-card">
+              <div class="guide-step-header">
+                <span class="step-number">3</span>
+                <span class="step-icon">🟢</span>
+                <span class="step-title">Auto-Calibración</span>
+              </div>
+              <p class="step-desc">Quedate <strong>parado erguido 2 segundos</strong>. El suelo se detecta solo y dirá <strong>"Señal Buena"</strong>.</p>
+            </div>
+
+            <div class="guide-step-card">
+              <div class="guide-step-header">
+                <span class="step-number">4</span>
+                <span class="step-icon">🚀</span>
+                <span class="step-title">¡A Saltá!</span>
+              </div>
+              <p class="step-desc">Flexioná y saltá con fuerza. La app medirá tu tiempo en el aire y calculará tus <strong>cm alcanzados</strong>.</p>
+            </div>
+          </div>
+          <div class="guide-tip">
+            <span class="tip-icon">💡</span>
+            <span><strong>Consejo:</strong> Usá ropa que resalte con el fondo y asegurate de tener buena iluminación.</span>
+          </div>
         </div>
       </aside>
     </main>

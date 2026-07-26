@@ -3,6 +3,12 @@
  * VISTA: CanvasView.ts
  * Responsabilidad: Renderizado visual en tiempo real en el elemento <canvas>:
  * esqueleto de cadera/piernas, línea base del suelo, indicador de pico y regla.
+ *
+ * Mejoras v2:
+ *  - Overlay de posicionamiento: silueta fantasma cuando no hay landmarks.
+ *  - Borde de estado: verde pulsante (buena señal) / rojo (señal mala).
+ *  - Barra de confianza de pose: 5 segmentos, color rojo→verde, esquina superior derecha.
+ *  - Pulso animado en la línea baseline cuando el estado es PREPARING.
  * ============================================================================
  */
 
@@ -13,6 +19,11 @@ export class CanvasView {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private readonly mobile: boolean;
+
+  // Animación de pulso para la línea baseline (PREPARING)
+  private pulsePhase: number = 0;
+  // Animación de borde verde (buena señal)
+  private borderPhase: number = 0;
 
   constructor(canvasElement: HTMLCanvasElement, isMobile: boolean = false) {
     this.canvas = canvasElement;
@@ -43,44 +54,240 @@ export class CanvasView {
 
   /**
    * Renderiza el marco visual completo: esqueleto, líneas de nivel y métricas.
+   * @param avgVisibility Visibilidad promedio de los keypoints [0, 1]
    */
   public render(
     landmarks: NormalizedLandmark[] | null,
     baselineHipY: number | null,
     peakHipY: number,
     currentJumpCm: number,
-    jumpState: JumpState
+    jumpState: JumpState,
+    avgVisibility: number = 0
   ): void {
     this.clear();
     const width = this.canvas.width;
     const height = this.canvas.height;
 
-    // 1. Dibujar línea base del suelo (Baseline Y)
-    if (baselineHipY !== null) {
-      this.drawBaselineLine(width, baselineHipY);
+    // Avanzar fases de animación
+    this.pulsePhase += 0.08;
+    this.borderPhase += 0.05;
+
+    // 1. Si no hay landmarks, mostrar silueta fantasma de posicionamiento
+    if (!landmarks || landmarks.length < 33) {
+      this.drawPositioningOverlay(width, height);
+      return;
     }
 
-    // 2. Dibujar línea del pico máximo de salto si está activo o en vuelo
+    // 2. Dibujar borde de estado (verde/rojo según visibilidad)
+    this.drawStatusBorder(width, height, avgVisibility);
+
+    // 3. Dibujar barra de confianza de pose (esquina superior derecha)
+    this.drawConfidenceBar(width, avgVisibility);
+
+    // 4. Dibujar línea base del suelo (Baseline Y) — con pulso si PREPARING
+    if (baselineHipY !== null) {
+      this.drawBaselineLine(width, baselineHipY, jumpState);
+    }
+
+    // 5. Dibujar línea del pico máximo de salto si está activo o en vuelo
     if (baselineHipY !== null && peakHipY < baselineHipY - 5) {
-      const peakJumpCm = (baselineHipY - peakHipY) * (currentJumpCm / (baselineHipY - peakHipY || 1));
       this.drawPeakLine(width, peakHipY, currentJumpCm);
     }
 
-    // 3. Dibujar esqueleto de la persona si hay landmarks detectados
-    if (landmarks && landmarks.length >= 33) {
-      this.drawSkeleton(landmarks, width, height, jumpState);
+    // 6. Dibujar esqueleto de la persona
+    this.drawSkeleton(landmarks, width, height, jumpState);
+  }
+
+  // ── Overlay de posicionamiento ──────────────────────────────────────────
+
+  /**
+   * Dibuja una silueta fantasma semitransparente en el centro del canvas
+   * para guiar al usuario sobre dónde posicionarse.
+   */
+  private drawPositioningOverlay(width: number, height: number): void {
+    const cx = width / 2;
+    const cy = height / 2;
+
+    // Pulso suave para la silueta
+    const alpha = 0.15 + 0.07 * Math.sin(this.pulsePhase);
+
+    this.ctx.save();
+    this.ctx.globalAlpha = alpha;
+    this.ctx.strokeStyle = "#00F2FE";
+    this.ctx.lineWidth = 3;
+    this.ctx.setLineDash([]);
+
+    // Escala proporcional a la altura del canvas
+    const scale = height * 0.55;
+
+    // Cabeza
+    const headR = scale * 0.065;
+    const headCy = cy - scale * 0.38;
+    this.ctx.beginPath();
+    this.ctx.arc(cx, headCy, headR, 0, 2 * Math.PI);
+    this.ctx.stroke();
+
+    // Cuerpo (torso)
+    const shoulderY = headCy + headR + scale * 0.04;
+    const hipY = shoulderY + scale * 0.28;
+    this.ctx.beginPath();
+    this.ctx.moveTo(cx, shoulderY);
+    this.ctx.lineTo(cx, hipY);
+    this.ctx.stroke();
+
+    // Hombros
+    const shoulderW = scale * 0.15;
+    this.ctx.beginPath();
+    this.ctx.moveTo(cx - shoulderW, shoulderY);
+    this.ctx.lineTo(cx + shoulderW, shoulderY);
+    this.ctx.stroke();
+
+    // Brazos
+    const elbowY = shoulderY + scale * 0.18;
+    this.ctx.beginPath();
+    this.ctx.moveTo(cx - shoulderW, shoulderY);
+    this.ctx.lineTo(cx - shoulderW * 1.3, elbowY);
+    this.ctx.stroke();
+    this.ctx.beginPath();
+    this.ctx.moveTo(cx + shoulderW, shoulderY);
+    this.ctx.lineTo(cx + shoulderW * 1.3, elbowY);
+    this.ctx.stroke();
+
+    // Piernas
+    const hipW = scale * 0.1;
+    const kneeY = hipY + scale * 0.22;
+    const footY = kneeY + scale * 0.22;
+    // Cadera izquierda → rodilla → pie
+    this.ctx.beginPath();
+    this.ctx.moveTo(cx - hipW, hipY);
+    this.ctx.lineTo(cx - hipW * 1.1, kneeY);
+    this.ctx.lineTo(cx - hipW * 1.15, footY);
+    this.ctx.stroke();
+    // Cadera derecha → rodilla → pie
+    this.ctx.beginPath();
+    this.ctx.moveTo(cx + hipW, hipY);
+    this.ctx.lineTo(cx + hipW * 1.1, kneeY);
+    this.ctx.lineTo(cx + hipW * 1.15, footY);
+    this.ctx.stroke();
+
+    this.ctx.globalAlpha = 1;
+    this.ctx.restore();
+
+    // Texto de guía
+    this.ctx.save();
+    const textAlpha = 0.6 + 0.3 * Math.sin(this.pulsePhase);
+    this.ctx.globalAlpha = textAlpha;
+    this.ctx.fillStyle = "#00F2FE";
+    this.ctx.font = `bold ${Math.max(14, height * 0.022)}px 'Outfit', sans-serif`;
+    this.ctx.textAlign = "center";
+    this.ctx.fillText("Posiciónate frente a la cámara", cx, cy + height * 0.33);
+    this.ctx.font = `${Math.max(11, height * 0.017)}px 'Outfit', sans-serif`;
+    this.ctx.fillStyle = "rgba(255,255,255,0.7)";
+    this.ctx.fillText("El cuerpo completo debe verse en pantalla", cx, cy + height * 0.33 + height * 0.03);
+    this.ctx.restore();
+  }
+
+  // ── Borde de estado ─────────────────────────────────────────────────────
+
+  /**
+   * Dibuja un borde interior en el canvas coloreado según la calidad de pose.
+   * Verde pulsante = buena señal (>0.7); rojo tenue = mala señal (<0.4); ninguno = regular.
+   */
+  private drawStatusBorder(width: number, height: number, avgVisibility: number): void {
+    if (avgVisibility >= 0.7) {
+      const alpha = 0.25 + 0.2 * Math.abs(Math.sin(this.borderPhase));
+      this.ctx.save();
+      this.ctx.strokeStyle = `rgba(0, 230, 100, ${alpha})`;
+      this.ctx.lineWidth = 8;
+      this.ctx.strokeRect(4, 4, width - 8, height - 8);
+      this.ctx.restore();
+    } else if (avgVisibility < 0.4 && avgVisibility > 0) {
+      this.ctx.save();
+      this.ctx.strokeStyle = "rgba(255, 60, 60, 0.3)";
+      this.ctx.lineWidth = 6;
+      this.ctx.strokeRect(4, 4, width - 8, height - 8);
+      this.ctx.restore();
     }
   }
 
+  // ── Barra de confianza ──────────────────────────────────────────────────
+
   /**
-   * Dibuja la línea horizontal del nivel del suelo (Baseline Hip Y)
+   * Dibuja una barra de confianza de pose en la esquina superior derecha (5 segmentos).
    */
-  private drawBaselineLine(width: number, y: number): void {
+  private drawConfidenceBar(width: number, avgVisibility: number): void {
+    const segments = 5;
+    const filled = Math.round(avgVisibility * segments);
+    const barW = 16;
+    const barH = 8;
+    const gap = 3;
+    const totalW = segments * barW + (segments - 1) * gap;
+    const startX = width - totalW - 12;
+    const startY = 12;
+
+    this.ctx.save();
+
+    // Fondo semitransparente
+    this.ctx.fillStyle = "rgba(0,0,0,0.45)";
+    this.ctx.beginPath();
+    this.ctx.roundRect(startX - 6, startY - 4, totalW + 12, barH + 16, 4);
+    this.ctx.fill();
+
+    // Segmentos
+    for (let i = 0; i < segments; i++) {
+      const x = startX + i * (barW + gap);
+      const ratio = i / (segments - 1);
+      // Gradiente: rojo → amarillo → verde
+      const r = Math.round(255 * (1 - ratio));
+      const g = Math.round(200 * ratio + 55);
+      const active = i < filled;
+      this.ctx.fillStyle = active
+        ? `rgb(${r}, ${g}, 50)`
+        : "rgba(255,255,255,0.12)";
+      this.ctx.beginPath();
+      this.ctx.roundRect(x, startY, barW, barH, 2);
+      this.ctx.fill();
+    }
+
+    // Etiqueta "SEÑAL"
+    this.ctx.fillStyle = "rgba(255,255,255,0.65)";
+    this.ctx.font = `bold ${Math.max(8, 9)}px 'Space Mono', monospace`;
+    this.ctx.textAlign = "center";
+    this.ctx.fillText("SEÑAL", startX + totalW / 2, startY + barH + 10);
+
+    this.ctx.restore();
+  }
+
+  // ── Línea baseline ──────────────────────────────────────────────────────
+
+  /**
+   * Dibuja la línea horizontal del nivel del suelo (Baseline Hip Y).
+   * Pulsa visualmente cuando el estado es PREPARING.
+   */
+  private drawBaselineLine(width: number, y: number, jumpState: JumpState): void {
+    const isPreparing = jumpState === 'PREPARING';
+
+    let alpha: number;
+    let lineWidth: number;
+    let dashLen: number;
+
+    if (isPreparing) {
+      // Animación sinusoidal de pulso en la línea baseline
+      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(this.pulsePhase * 1.5));
+      alpha = 0.5 + 0.5 * pulse;
+      lineWidth = 2 + 2 * pulse;
+      dashLen = 8;
+    } else {
+      alpha = 0.8;
+      lineWidth = 2;
+      dashLen = 8;
+    }
+
     this.ctx.save();
     this.ctx.beginPath();
-    this.ctx.strokeStyle = "rgba(0, 242, 254, 0.8)";
-    this.ctx.lineWidth = 2;
-    this.ctx.setLineDash([8, 6]); // Línea punteada neón
+    this.ctx.strokeStyle = `rgba(0, 242, 254, ${alpha})`;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.setLineDash([dashLen, 6]);
     this.ctx.moveTo(0, y);
     this.ctx.lineTo(width, y);
     this.ctx.stroke();
@@ -88,9 +295,16 @@ export class CanvasView {
     // Etiqueta de suelo
     this.ctx.fillStyle = "#00F2FE";
     this.ctx.font = "bold 12px 'Space Mono', monospace";
-    this.ctx.fillText("--- LÍNEA BASE (SUELO) ---", 16, y - 6);
+    this.ctx.textAlign = "left";
+    this.ctx.fillText(
+      isPreparing ? "--- FLEXIONANDO ---" : "--- LÍNEA BASE (SUELO) ---",
+      16,
+      y - 6
+    );
     this.ctx.restore();
   }
+
+  // ── Línea de pico ───────────────────────────────────────────────────────
 
   /**
    * Dibuja la línea de cota máxima del salto
@@ -112,9 +326,12 @@ export class CanvasView {
     // Etiqueta del pico en cm
     this.ctx.fillStyle = "#FFD700";
     this.ctx.font = "bold 14px 'Outfit', sans-serif";
-    this.ctx.fillText(`▲ PICO ALCANZADO: ${currentCm.toFixed(1)} cm`, width - 210, y - 8);
+    this.ctx.textAlign = "right";
+    this.ctx.fillText(`▲ PICO ALCANZADO: ${currentCm.toFixed(1)} cm`, width - 12, y - 8);
     this.ctx.restore();
   }
+
+  // ── Esqueleto ───────────────────────────────────────────────────────────
 
   /**
    * Dibuja los puntos clave (Keypoints) y las conexiones de piernas/cadera

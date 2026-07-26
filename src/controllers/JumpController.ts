@@ -4,6 +4,13 @@
  * Responsabilidad: Orquestar el flujo de la aplicación. Conecta el feed de
  * cámara, la visión por computadora (PoseModel), la matemática/estado (JumpModel),
  * el renderizado en canvas (CanvasView) y el DOM (UIView).
+ *
+ * Mejoras v2:
+ *  - Constraints de cámara mejoradas: mayor resolución en móvil portrait + frameRate ideal 30.
+ *  - Modelo `full` activado automáticamente en desktop para mayor precisión.
+ *  - Detección y manejo de cambios de orientación (portrait/landscape).
+ *  - Pasa avgPoseVisibility a CanvasView y UIView para indicadores de calidad.
+ *  - Escucha onBaselineAutoRecalibrated de JumpModel para disparar toasts en UIView.
  * ============================================================================
  */
 
@@ -34,18 +41,27 @@ export class JumpController {
   // En móvil se limita a ~30fps para la inferencia de pose; en desktop se permite hasta 60fps
   private readonly INFERENCE_INTERVAL_MS: number = this.isMobile() ? 34 : 17;
 
+  // Calidad de detección y notificaciones
+  private lastAvgVisibility: number = 0;   // promedio de visibilidad de keypoints clave
+  private lastLandmarkSeenMs: number = 0;  // última vez que se detectó una persona
+  private poseLostNotified: boolean = false; // evita notificaciones repetidas
+
+  // Orientación del dispositivo
+  private isPortrait: boolean = true;
+
   constructor() {
     this.uiView = new UIView();
     this.canvasView = new CanvasView(this.uiView.getCanvasElement(), this.isMobile());
     this.poseModel = new PoseModel();
     this.jumpModel = new JumpModel();
 
-    // Escuchar cuando se completa un salto
+    // Detectar orientación inicial
+    this.isPortrait = window.innerHeight > window.innerWidth;
+
+    // Escuchar cuando se completa un salto (en modo video: detener tras 2s)
     this.jumpModel.onJumpCompleted = (peakCm) => {
       if (this.activeSource === 'video') {
         console.log(`¡Salto medido exitosamente (${peakCm.toFixed(1)} cm)! Deteniendo y eliminando el video...`);
-        
-        // Esperar 2 segundos para permitir ver la animación del pico y luego eliminar el video
         if (this.videoStopTimeout) window.clearTimeout(this.videoStopTimeout);
         this.videoStopTimeout = window.setTimeout(() => {
           if (this.activeSource === 'video') {
@@ -53,6 +69,16 @@ export class JumpController {
           }
         }, 2000);
       }
+    };
+
+    // Toast al calibrar automáticamente el suelo
+    this.jumpModel.onBaselineCalibrated = () => {
+      this.uiView.showToast("✅ Suelo detectado automáticamente", 'success');
+    };
+
+    // Toast y celebración visual al romper el récord personal
+    this.jumpModel.onNewRecord = (peakCm) => {
+      this.uiView.triggerRecordCelebration(peakCm);
     };
 
     this.init();
@@ -67,16 +93,16 @@ export class JumpController {
       onToggleCamera: () => this.toggleCamera(),
       onFlipCamera: () => this.flipCamera(),
       onSelectVideoFile: (file) => this.loadVideoFile(file),
-      onCalibrateBaseline: () => this.calibrateBaseline(),
       onResetRecord: () => this.resetRecord()
     });
 
     try {
-      // Cargar modelos de MediaPipe Pose
-      this.uiView.updateLoadingState(true, "Iniciando MediaPipe Pose (GPU)...");
+      // Cargar modelo de MediaPipe: Full en desktop (más preciso), Lite en móvil (más rápido)
+      const useLiteModel = this.isMobile();
+      this.uiView.updateLoadingState(true, `Iniciando MediaPipe Pose (${useLiteModel ? 'Lite' : 'Full'})...`);
       await this.poseModel.initialize((msg) => {
         this.uiView.updateLoadingState(true, msg);
-      });
+      }, !useLiteModel);
       this.uiView.updateLoadingState(false);
     } catch (error) {
       console.error("No se pudo cargar MediaPipe Pose:", error);
@@ -118,15 +144,12 @@ export class JumpController {
     await this.startCamera();
   }
 
-  /**
-   * Carga un archivo de video local seleccionado por el usuario.
-   */
   private async loadVideoFile(file: File): Promise<void> {
     this.stopActiveSource();
 
     this.currentObjectUrl = URL.createObjectURL(file);
     const videoEl = this.uiView.getVideoElement();
-    
+
     videoEl.srcObject = null;
     videoEl.src = this.currentObjectUrl;
     videoEl.loop = false; // Sin bucle: se reproduce una vez para calcular el salto
@@ -160,18 +183,20 @@ export class JumpController {
 
   /**
    * Activa el stream de video de la cámara web.
+   * Mejoras v2: mejor resolución en móvil portrait y frameRate ideal 30.
    */
   private async startCamera(): Promise<void> {
     this.stopActiveSource();
 
     try {
-      // Resolución adaptada: menor en móvil para reducir carga de procesamiento
       const mobile = this.isMobile();
+      // Resolución ultra ligera en móvil (640x480 / 480x640) para garantizar 60fps sin calentamiento
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: mobile ? 640 : 1280 },
-          height: { ideal: mobile ? 480 : 720 },
-          facingMode: this.facingMode // frontal o trasera
+          width:     { ideal: mobile ? 480 : 1280, max: mobile ? 720 : 1920 },
+          height:    { ideal: mobile ? 640 : 720, max: mobile ? 1280 : 1080 },
+          frameRate: { ideal: 30, max: 60 },
+          facingMode: this.facingMode
         },
         audio: false
       });
@@ -265,9 +290,31 @@ export class JumpController {
         if (poseResult && poseResult.landmarks && poseResult.landmarks.length > 0) {
           const landmarks = poseResult.landmarks[0];
           this.lastLandmarks = landmarks;
+          this.lastLandmarkSeenMs = nowMs;
+
+          // Notificar si la pose se recupera después de perderse
+          if (this.poseLostNotified) {
+            this.poseLostNotified = false;
+            this.uiView.showToast("✅ Persona detectada", 'success');
+          }
+
+          // Calcular visibilidad media de los keypoints clave (hombros, caderas, rodillas, tobillos)
+          const keyIndices = [11, 12, 23, 24, 25, 26, 27, 28];
+          this.lastAvgVisibility = keyIndices.reduce(
+            (s, i) => s + ((landmarks[i]?.visibility) ?? 0), 0
+          ) / keyIndices.length;
 
           // 2. Procesar lógica del salto en el JumpModel
           this.jumpModel.processFrame(landmarks, videoEl.videoHeight, nowMs);
+        } else {
+          this.lastAvgVisibility = 0;
+
+          // Notificar si no se detecta persona por más de 1.5 segundos
+          if (!this.poseLostNotified && this.lastLandmarkSeenMs > 0
+            && (nowMs - this.lastLandmarkSeenMs) > 1500) {
+            this.poseLostNotified = true;
+            this.uiView.showToast("⚠️ Ajústame tu posición — no se detecta la persona", 'warning');
+          }
         }
       }
 
@@ -277,7 +324,8 @@ export class JumpController {
         this.jumpModel.getBaselineHipY(),
         this.jumpModel.getPeakHipY(),
         this.jumpModel.getCurrentJumpCm(),
-        this.jumpModel.getCurrentState()
+        this.jumpModel.getCurrentState(),
+        this.lastAvgVisibility
       );
 
       // 4. Actualizar métricas y estado en UIView
@@ -293,16 +341,6 @@ export class JumpController {
     // Solicitar siguiente frame
     this.animationFrameId = requestAnimationFrame(this.processLoop);
   };
-
-  /**
-   * Fuerza la recalibración de la posición del suelo (baseline).
-   */
-  private calibrateBaseline(): void {
-    if (this.lastLandmarks) {
-      const videoEl = this.uiView.getVideoElement();
-      this.jumpModel.calibrateBaseline(this.lastLandmarks, videoEl.videoHeight);
-    }
-  }
 
   /**
    * Detecta si el dispositivo es un teléfono o tablet.

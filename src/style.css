@@ -91,6 +91,12 @@ body {
   height: 38px;
   object-fit: contain;
   filter: invert(1) drop-shadow(0 0 8px var(--primary-cyan));
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+
+.logo-badge:active .logo-img {
+  transform: translateY(-8px) scale(1.15) rotate(-5deg);
 }
 
 .app-header h1 {
@@ -101,6 +107,7 @@ body {
 
 .app-header h1 .highlight {
   background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -226,6 +233,7 @@ body {
   font-weight: 700;
   line-height: 1;
   background: linear-gradient(180deg, #FFFFFF, #B0E0FF);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -444,6 +452,7 @@ body {
   font-weight: 700;
   line-height: 1;
   background: linear-gradient(180deg, #FFD700, #FFA500);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -489,17 +498,111 @@ body {
   line-height: 1.4;
 }
 
-.steps-list {
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.45;
+/* ── GUÍA RÁPIDA INTERACTIVA (TARJETAS DE PASOS) ── */
+.guide-badge {
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.35);
+  color: var(--primary-cyan);
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  letter-spacing: 0.6px;
 }
 
-.steps-list li strong { color: var(--text-main); }
+.guide-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.guide-step-card {
+  background: rgba(14, 165, 233, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.guide-step-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.7);
+  box-shadow: 0 4px 18px rgba(56, 189, 248, 0.25);
+  background: rgba(14, 165, 233, 0.25);
+}
+
+.guide-step-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #38BDF8, #0284C7);
+  color: #FFFFFF;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.4);
+}
+
+.step-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.step-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  line-height: 1.2;
+}
+
+.step-desc {
+  font-size: 0.76rem;
+  color: #FFFFFF;
+  opacity: 0.95;
+  line-height: 1.35;
+}
+
+.step-desc strong {
+  color: #FFFFFF;
+  font-weight: 800;
+}
+
+.guide-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px dashed rgba(255, 215, 0, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  color: #FFE066;
+  line-height: 1.35;
+}
+
+.tip-icon {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.guide-tip strong {
+  color: var(--accent-gold);
+}
 
 /* ── FOOTER ── */
 .app-footer {
@@ -621,3 +724,371 @@ body {
   .main-layout { grid-template-columns: 1fr 420px; }
   .app-header h1 { font-size: 2.8rem; }
 }
+
+/* ── NOTIFICACIONES TOAST (Flotantes) ── */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateX(40px) scale(0.95);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast-visible {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+.toast-hiding {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.9);
+}
+
+.toast-success {
+  border-color: rgba(0, 242, 254, 0.5);
+  background: linear-gradient(135deg, rgba(11, 28, 44, 0.95), rgba(0, 242, 254, 0.2));
+  box-shadow: 0 4px 20px rgba(0, 242, 254, 0.25);
+}
+
+.toast-warning {
+  border-color: rgba(255, 215, 0, 0.5);
+  background: linear-gradient(135deg, rgba(38, 32, 12, 0.95), rgba(255, 215, 0, 0.2));
+  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.25);
+}
+
+.toast-info {
+  border-color: rgba(79, 172, 254, 0.5);
+  background: linear-gradient(135deg, rgba(16, 30, 54, 0.95), rgba(79, 172, 254, 0.2));
+  box-shadow: 0 4px 20px rgba(79, 172, 254, 0.25);
+}
+
+/* ── INDICADOR DE CALIDAD DE SEÑAL ── */
+.signal-quality-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.signal-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 14px;
+}
+
+.signal-bar {
+  width: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  transition: all 0.25s ease;
+}
+
+.signal-bars #signal-bar-1 { height: 6px; }
+.signal-bars #signal-bar-2 { height: 10px; }
+.signal-bars #signal-bar-3 { height: 14px; }
+
+.signal-bar-active.signal-good { background: #00E676; box-shadow: 0 0 6px rgba(0, 230, 118, 0.6); }
+.signal-bar-active.signal-medium { background: #FFD700; box-shadow: 0 0 6px rgba(255, 215, 0, 0.6); }
+.signal-bar-active.signal-bad { background: #FF5252; box-shadow: 0 0 6px rgba(255, 82, 82, 0.6); }
+
+.signal-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: color 0.25s ease;
+}
+
+.signal-text.signal-good { color: #00E676; }
+.signal-text.signal-medium { color: #FFD700; }
+.signal-text.signal-bad { color: #FF5252; }
+
+/* ── ANIMACIONES DE BOTONES ── */
+
+/* 1. Botón Iniciar/Detener Cámara */
+#btn-toggle-cam {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: pulsePrimaryGlow 2.5s infinite ease-in-out;
+}
+
+#btn-toggle-cam .btn-icon {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#btn-toggle-cam:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(79, 172, 254, 0.5);
+}
+
+#btn-toggle-cam:hover:not(:disabled) .btn-icon {
+  transform: scale(1.22) rotate(10deg);
+}
+
+#btn-toggle-cam.btn-danger {
+  animation: pulseDangerGlow 2s infinite ease-in-out;
+}
+
+#btn-toggle-cam.btn-danger:hover:not(:disabled) {
+  box-shadow: 0 6px 22px rgba(255, 82, 82, 0.5);
+}
+
+/* 2. Botón Subir Video */
+#btn-upload-video {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: pulseVideoGlow 3s infinite ease-in-out;
+}
+
+#btn-upload-video .btn-icon {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#btn-upload-video:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--primary-cyan);
+  box-shadow: 0 6px 20px rgba(0, 242, 254, 0.35);
+}
+
+#btn-upload-video:hover:not(:disabled) .btn-icon {
+  transform: translateY(-3px) scale(1.18) rotate(-8deg);
+}
+
+#btn-upload-video:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+}
+
+/* 3. Botón Borrar Récord */
+#btn-reset-record {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+#btn-reset-record .btn-icon {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#btn-reset-record:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(255, 82, 82, 0.2);
+  border-color: rgba(255, 82, 82, 0.5);
+  box-shadow: 0 4px 16px rgba(255, 82, 82, 0.35);
+}
+
+#btn-reset-record:hover:not(:disabled) .btn-icon {
+  animation: shakeTrash 0.4s ease-in-out;
+}
+
+/* 4. Botón Cambiar Cámara (Flip) */
+#btn-flip-cam {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#btn-flip-cam:hover {
+  transform: scale(1.15) rotate(180deg);
+  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.5);
+}
+
+#btn-flip-cam:active {
+  transform: scale(0.95) rotate(360deg);
+}
+
+/* ── KEYFRAMES ANIMACIONES (Optimizadas para desktop / reducidas en móvil) ── */
+
+@media (min-width: 768px) {
+  #btn-toggle-cam {
+    animation: pulsePrimaryGlow 2.5s infinite ease-in-out;
+  }
+  #btn-toggle-cam.btn-danger {
+    animation: pulseDangerGlow 2s infinite ease-in-out;
+  }
+  #btn-upload-video {
+    animation: pulseVideoGlow 3s infinite ease-in-out;
+  }
+}
+
+@keyframes pulsePrimaryGlow {
+  0%, 100% {
+    box-shadow: 0 4px 14px rgba(79, 172, 254, 0.3);
+  }
+  50% {
+    box-shadow: 0 6px 20px rgba(79, 172, 254, 0.6);
+  }
+}
+
+@keyframes pulseVideoGlow {
+  0%, 100% {
+    box-shadow: 0 2px 10px rgba(0, 242, 254, 0.15);
+    border-color: rgba(0, 242, 254, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 18px rgba(79, 172, 254, 0.4);
+    border-color: rgba(79, 172, 254, 0.7);
+  }
+}
+
+@keyframes pulseDangerGlow {
+  0%, 100% {
+    box-shadow: 0 2px 10px rgba(255, 82, 82, 0.2);
+    border-color: rgba(255, 82, 82, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 18px rgba(255, 82, 82, 0.5);
+    border-color: rgba(255, 82, 82, 0.7);
+  }
+}
+
+@keyframes shakeTrash {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg) scale(1.15); }
+  50% { transform: rotate(12deg) scale(1.15); }
+  75% { transform: rotate(-6deg) scale(1.15); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+/* ── ANIMACIONES ESPECIALES PARA LA VISTA MÓVIL ── */
+
+/* 1. Pulso respirante en el indicador luminoso de estado (Dot) */
+.state-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+  margin-right: 6px;
+  animation: pulseDot 1.6s infinite ease-in-out;
+  will-change: opacity, transform;
+}
+
+@keyframes pulseDot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+
+/* 2. Destello sutil en el Badge del Récord (MÁXIMO) */
+.badge-gold {
+  position: relative;
+  overflow: hidden;
+  animation: shimmerGold 4s infinite ease-in-out;
+}
+
+@keyframes shimmerGold {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+  }
+}
+
+/* 3. Entrada suave de tarjetas al cargar la app en el celular */
+.video-card,
+.stat-card,
+.config-card,
+.info-card {
+  animation: mobileFadeSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stat-card { animation-delay: 0.1s; }
+.config-card { animation-delay: 0.18s; }
+.info-card { animation-delay: 0.25s; }
+
+@keyframes mobileFadeSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 4. Feedback táctil háptico-visual ultra rápido para móvil */
+@media (hover: none) and (pointer: coarse) {
+  .btn:active {
+    transform: scale(0.93) !important;
+    transition: transform 0.08s ease !important;
+  }
+}
+
+/* ── CELEBRACIÓN DE NUEVO RÉCORD (Resplandor Dorado Neón) ── */
+.record-celebration {
+  animation: celebrateCardGlow 2.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  border-color: #FFD700 !important;
+}
+
+.celebrate-text {
+  animation: celebrateTextPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+@keyframes celebrateCardGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.9);
+    transform: scale(1);
+  }
+  20% {
+    box-shadow: 0 0 30px 10px rgba(255, 215, 0, 0.8);
+    transform: scale(1.04);
+  }
+  50% {
+    box-shadow: 0 0 45px 15px rgba(255, 215, 0, 0.95);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: var(--shadow-main);
+    transform: scale(1);
+  }
+}
+
+@keyframes celebrateTextPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.35);
+    color: #FFF700;
+    text-shadow: 0 0 16px rgba(255, 215, 0, 0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+
+
+
+
+
