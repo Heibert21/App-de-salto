@@ -27,6 +27,13 @@ export class JumpController {
   // Cámara activa: 'user' (frontal) o 'environment' (trasera)
   private facingMode: 'user' | 'environment' = 'environment';
 
+  // Optimizaciones de rendimiento móvil
+  private lastInferenceMs: number = 0;
+  private lastVideoWidth: number = 0;
+  private lastVideoHeight: number = 0;
+  // En móvil se limita a ~30fps para la inferencia de pose; en desktop se permite hasta 60fps
+  private readonly INFERENCE_INTERVAL_MS: number = this.isMobile() ? 34 : 17;
+
   constructor() {
     this.uiView = new UIView();
     this.canvasView = new CanvasView(this.uiView.getCanvasElement());
@@ -145,10 +152,12 @@ export class JumpController {
     this.stopActiveSource();
 
     try {
+      // Resolución adaptada: menor en móvil para reducir carga de procesamiento
+      const mobile = this.isMobile();
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: mobile ? 640 : 1280 },
+          height: { ideal: mobile ? 480 : 720 },
           facingMode: this.facingMode // frontal o trasera
         },
         audio: false
@@ -227,21 +236,29 @@ export class JumpController {
     const nowMs = performance.now();
 
     if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
-      // Ajustar dimensiones del canvas
-      this.canvasView.resize(videoEl.videoWidth, videoEl.videoHeight);
-
-      // 1. Detectar pose con MediaPipe PoseModel
-      const poseResult = this.poseModel.detectPose(videoEl, nowMs);
-
-      if (poseResult && poseResult.landmarks && poseResult.landmarks.length > 0) {
-        const landmarks = poseResult.landmarks[0];
-        this.lastLandmarks = landmarks;
-
-        // 2. Procesar lógica del salto en el JumpModel
-        this.jumpModel.processFrame(landmarks, videoEl.videoHeight, nowMs);
+      // Solo redimensionar el canvas cuando cambian las dimensiones del video
+      if (videoEl.videoWidth !== this.lastVideoWidth || videoEl.videoHeight !== this.lastVideoHeight) {
+        this.canvasView.resize(videoEl.videoWidth, videoEl.videoHeight);
+        this.lastVideoWidth = videoEl.videoWidth;
+        this.lastVideoHeight = videoEl.videoHeight;
       }
 
-      // 3. Renderizar esqueleto y líneas en CanvasView
+      // 1. Detectar pose con MediaPipe — limitado a INFERENCE_INTERVAL_MS para ahorrar CPU/GPU
+      const shouldInfer = (nowMs - this.lastInferenceMs) >= this.INFERENCE_INTERVAL_MS;
+      if (shouldInfer) {
+        this.lastInferenceMs = nowMs;
+        const poseResult = this.poseModel.detectPose(videoEl, nowMs);
+
+        if (poseResult && poseResult.landmarks && poseResult.landmarks.length > 0) {
+          const landmarks = poseResult.landmarks[0];
+          this.lastLandmarks = landmarks;
+
+          // 2. Procesar lógica del salto en el JumpModel
+          this.jumpModel.processFrame(landmarks, videoEl.videoHeight, nowMs);
+        }
+      }
+
+      // 3. Renderizar siempre con los últimos landmarks conocidos (suave a 60fps)
       this.canvasView.render(
         this.lastLandmarks,
         this.jumpModel.getBaselineHipY(),
@@ -272,6 +289,14 @@ export class JumpController {
       const videoEl = this.uiView.getVideoElement();
       this.jumpModel.calibrateBaseline(this.lastLandmarks, videoEl.videoHeight);
     }
+  }
+
+  /**
+   * Detecta si el dispositivo es un teléfono o tablet.
+   */
+  private isMobile(): boolean {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      ('ontouchstart' in window && navigator.maxTouchPoints > 1);
   }
 
   /**
