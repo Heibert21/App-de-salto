@@ -36,7 +36,7 @@ export class JumpController {
 
   constructor() {
     this.uiView = new UIView();
-    this.canvasView = new CanvasView(this.uiView.getCanvasElement());
+    this.canvasView = new CanvasView(this.uiView.getCanvasElement(), this.isMobile());
     this.poseModel = new PoseModel();
     this.jumpModel = new JumpModel();
 
@@ -82,6 +82,19 @@ export class JumpController {
       console.error("No se pudo cargar MediaPipe Pose:", error);
       this.uiView.updateLoadingState(true, "Error al cargar MediaPipe Pose. Verifica tu conexión a internet.");
     }
+
+    // Pausar el bucle cuando el usuario cambia de pestaña o app (ahorra batería)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (this.animationFrameId !== null) {
+          cancelAnimationFrame(this.animationFrameId);
+          this.animationFrameId = null;
+        }
+      } else if (this.activeSource !== 'none') {
+        // Reanudar el bucle al volver a la pestaña
+        this.processLoop();
+      }
+    });
   }
 
   /**

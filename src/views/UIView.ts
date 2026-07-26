@@ -41,6 +41,12 @@ export class UIView {
   private videoElement: HTMLVideoElement;
   private canvasElement: HTMLCanvasElement;
 
+  // Cache de últimos valores para evitar escrituras redundantes al DOM (60fps)
+  private lastLiveHeight: string = '';
+  private lastMaxJump: string = '';
+  private lastState: string = '';
+  private lastBaselineY: string = '';
+
   constructor() {
     // Obtener referencias de elementos del DOM
     this.liveHeightVal = this.getElement("live-height-val");
@@ -153,14 +159,25 @@ export class UIView {
     baselineY: number | null,
     flightTimeMs: number
   ): void {
-    // 1. Altura en tiempo real
-    this.liveHeightVal.textContent = currentJumpCm.toFixed(1);
+    // 1. Altura en tiempo real (solo actualizar si cambia)
+    const liveStr = currentJumpCm.toFixed(1);
+    if (liveStr !== this.lastLiveHeight) {
+      this.liveHeightVal.textContent = liveStr;
+      this.lastLiveHeight = liveStr;
+    }
 
-    // 2. Récord máximo
-    this.maxJumpVal.textContent = maxJumpCm.toFixed(1);
+    // 2. Récord máximo (solo actualizar si cambia)
+    const maxStr = maxJumpCm.toFixed(1);
+    if (maxStr !== this.lastMaxJump) {
+      this.maxJumpVal.textContent = maxStr;
+      this.lastMaxJump = maxStr;
+    }
 
-    // 3. Insignia de estado
-    this.updateStateBadge(state);
+    // 3. Insignia de estado (solo actualizar si cambia)
+    if (state !== this.lastState) {
+      this.updateStateBadge(state);
+      this.lastState = state;
+    }
 
     // 4. Tiempo de vuelo actual
     if (flightTimeMs > 0) {
@@ -168,8 +185,12 @@ export class UIView {
       this.lastJumpTimeText.textContent = `Último vuelo: ${(flightTimeMs / 1000).toFixed(2)}s`;
     }
 
-    // 5. Baseline
-    this.baselineYText.textContent = baselineY !== null ? `${Math.round(baselineY)} px` : "-- px";
+    // 5. Baseline (solo actualizar si cambia)
+    const baselineStr = baselineY !== null ? `${Math.round(baselineY)} px` : '-- px';
+    if (baselineStr !== this.lastBaselineY) {
+      this.baselineYText.textContent = baselineStr;
+      this.lastBaselineY = baselineStr;
+    }
   }
 
   /**

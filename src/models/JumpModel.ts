@@ -39,7 +39,15 @@ export class JumpModel {
   // Callback al completar salto
   public onJumpCompleted?: (peakJumpCm: number) => void;
 
-  constructor() {}
+  private static readonly STORAGE_KEY = 'youcanfly_record_cm';
+
+  constructor() {
+    // Recuperar récord guardado en localStorage (persiste entre sesiones)
+    const saved = parseFloat(localStorage.getItem(JumpModel.STORAGE_KEY) ?? '0');
+    if (!isNaN(saved) && saved > 0) {
+      this.maxJumpCm = saved;
+    }
+  }
 
   // ── Getters públicos ──
 
@@ -177,6 +185,8 @@ export class JumpModel {
           // Registrar nuevo récord si aplica
           if (this.peakJumpCm > this.maxJumpCm) {
             this.maxJumpCm = Number(this.peakJumpCm.toFixed(1));
+            // Persistir récord en localStorage
+            localStorage.setItem(JumpModel.STORAGE_KEY, String(this.maxJumpCm));
           }
 
           // Notificar al controlador que el salto fue medido exitosamente
@@ -223,5 +233,6 @@ export class JumpModel {
     this.maxJumpCm = 0;
     this.peakJumpCm = 0;
     this.currentJumpCm = 0;
+    localStorage.removeItem(JumpModel.STORAGE_KEY);
   }
 }

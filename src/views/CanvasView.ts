@@ -12,9 +12,11 @@ import { JumpState } from "../models/JumpModel";
 export class CanvasView {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private readonly mobile: boolean;
 
-  constructor(canvasElement: HTMLCanvasElement) {
+  constructor(canvasElement: HTMLCanvasElement, isMobile: boolean = false) {
     this.canvas = canvasElement;
+    this.mobile = isMobile;
     const context = this.canvas.getContext("2d");
     if (!context) {
       throw new Error("No se pudo obtener el contexto 2D del Canvas");
@@ -98,8 +100,11 @@ export class CanvasView {
     this.ctx.beginPath();
     this.ctx.strokeStyle = "rgba(255, 215, 0, 0.9)";
     this.ctx.lineWidth = 3;
-    this.ctx.shadowColor = "#FFD700";
-    this.ctx.shadowBlur = 10;
+    if (!this.mobile) {
+      // shadowBlur es muy costoso en móvil (se ejecuta en software)
+      this.ctx.shadowColor = "#FFD700";
+      this.ctx.shadowBlur = 10;
+    }
     this.ctx.moveTo(0, y);
     this.ctx.lineTo(width, y);
     this.ctx.stroke();
@@ -142,8 +147,11 @@ export class CanvasView {
     this.ctx.save();
     this.ctx.lineWidth = isAir ? 4 : 3;
     this.ctx.strokeStyle = strokeColor;
-    this.ctx.shadowColor = glowColor;
-    this.ctx.shadowBlur = isAir ? 12 : 6;
+    if (!this.mobile) {
+      // shadowBlur es la operación más costosa del canvas en móvil
+      this.ctx.shadowColor = glowColor;
+      this.ctx.shadowBlur = isAir ? 12 : 6;
+    }
 
     // Dibujar líneas entre articulaciones
     connections.forEach(([i, j]) => {
