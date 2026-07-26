@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <!-- viewport con user-scalable=no para evitar zoom accidental al tocar botones -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <!-- Tema oscuro en la barra de estado del móvil -->
+  <meta name="theme-color" content="#0B0F19" />
+  <!-- PWA: pantalla completa en iOS -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>You Can Fly - Medidor de Salto Vertical en Tiempo Real</title>
+  <meta name="description"
+    content="Aplicación web en tiempo real con TypeScript y MediaPipe Pose para medir la altura del salto vertical mediante visión por computadora." />
+
+  <!-- Fuentes de Google -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Mono:wght@700&display=swap"
+    rel="stylesheet">
+
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body>
+  <div id="app" class="app-container">
+
+    <!-- Encabezado Principal (compacto en móvil) -->
+    <header class="app-header">
+      <div class="logo-badge">
+        <img src="/jumpman.png" alt="Jordan Jumpman" class="logo-img" />
+        <h1>You Can <span class="highlight">Fly</span></h1>
+      </div>
+      <p class="tagline">Medidor de Salto Vertical · MediaPipe Pose AI</p>
+    </header>
+
+    <main class="main-layout">
+      <!-- Sección del Video / Canvas Overlay -->
+      <section class="video-section">
+        <div class="video-card">
+          <!-- Pantalla de carga -->
+          <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <p id="loading-text">Cargando MediaPipe Pose...</p>
+          </div>
+
+          <!-- Feed de Video y Canvas Superpuesto -->
+          <div class="canvas-wrapper">
+            <video id="webcam" playsinline autoplay muted></video>
+            <canvas id="output-canvas"></canvas>
+
+            <!-- Overlay de métrica en vivo -->
+            <div class="live-metric-overlay">
+              <div class="live-tag">ALTURA</div>
+              <div class="live-value-container">
+                <span id="live-height-val">0.0</span>
+                <span class="unit">cm</span>
+              </div>
+              <div id="jump-state-badge" class="state-badge state-idle">
+                <span class="state-dot"></span>
+                <span id="jump-state-text">Listo</span>
+              </div>
+            </div>
+
+            <!-- Botón de cambio de cámara (solo visible cuando hay cámara activa) -->
+            <button id="btn-flip-cam" class="btn-flip" title="Cambiar cámara" style="display:none;">🔄</button>
+          </div>
+
+          <!-- Toolbar de botones principales (táctiles y grandes) -->
+          <div class="camera-toolbar">
+            <button id="btn-toggle-cam" class="btn btn-primary">
+              <span class="btn-icon">📹</span>
+              <span id="btn-toggle-cam-text">Iniciar Cámara</span>
+            </button>
+            <input type="file" id="video-file-input" accept="video/mp4,video/webm,video/ogg,video/quicktime"
+              style="display: none;" />
+            <button id="btn-upload-video" class="btn btn-secondary">
+              <span class="btn-icon">📁</span>
+              <span id="btn-upload-video-text">Subir Video</span>
+            </button>
+          </div>
+          <!-- Segunda fila de botones -->
+          <div class="camera-toolbar toolbar-row2">
+            <button id="btn-calibrate" class="btn btn-secondary" disabled>
+              <span class="btn-icon">🎯</span>
+              <span>Fijar Suelo</span>
+            </button>
+            <button id="btn-reset-record" class="btn btn-danger" disabled>
+              <span class="btn-icon">🗑️</span>
+              <span>Borrar Récord</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dashboard de métricas (horizontal en tablet, vertical en móvil) -->
+      <aside class="dashboard-section">
+        <!-- Récord -->
+        <div class="card stat-card highlight-card">
+          <div class="card-header">
+            <h3>🏆 Récord</h3>
+            <span class="badge-gold">MÁXIMO</span>
+          </div>
+          <div class="big-metric">
+            <span id="max-jump-val">0.0</span>
+            <span class="unit">cm</span>
+          </div>
+          <p class="stat-footer" id="last-jump-time">Esperando primer salto...</p>
+        </div>
+
+        <!-- Datos del Salto -->
+        <div class="card config-card">
+          <div class="card-header">
+            <h3>📊 Datos del Salto</h3>
+          </div>
+          <div class="calibration-status">
+            <div class="status-row">
+              <span>Método:</span>
+              <strong id="method-text">Física (t de vuelo)</strong>
+            </div>
+            <div class="status-row">
+              <span>Tiempo en Aire:</span>
+              <strong id="flight-time-text">-- s</strong>
+            </div>
+            <div class="status-row">
+              <span>Nivel Suelo (Y):</span>
+              <strong id="baseline-y-text">-- px</strong>
+            </div>
+          </div>
+          <small class="help-text" style="margin-top: 10px; display: block;">
+            Usa <strong>h = g × t² / 8</strong>. No necesita estatura.
+          </small>
+        </div>
+
+        <!-- Guía Rápida -->
+        <div class="card info-card">
+          <div class="card-header">
+            <h3>💡 Guía Rápida</h3>
+          </div>
+          <ol class="steps-list">
+            <li>Apoya el teléfono de pie o pide a alguien que te filme el <strong>cuerpo completo</strong>.</li>
+            <li>Toca <strong>Iniciar Cámara</strong> o sube un <strong>video</strong>.</li>
+            <li>Párate erguido y toca <strong>Fijar Suelo</strong>.</li>
+            <li>¡Salta! La app mide la altura por el <strong>tiempo en el aire</strong>.</li>
+          </ol>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="app-footer">
+      <p>Desarrolado con · TypeScript · MediaPipe PoseLandmarker</p>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>
