@@ -66,29 +66,29 @@ body {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
 }
 
 /* ── HEADER ── */
 .app-header {
   text-align: center;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
 .logo-badge {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 
 .logo-img {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
   filter: invert(1) drop-shadow(0 0 8px var(--primary-cyan));
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -100,7 +100,7 @@ body {
 }
 
 .app-header h1 {
-  font-size: 1.8rem;
+  font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.5px;
 }
@@ -114,7 +114,7 @@ body {
 
 .tagline {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-weight: 400;
 }
 
@@ -122,7 +122,7 @@ body {
 .main-layout {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 /* ── VIDEO SECTION ── */
@@ -136,7 +136,7 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 10px;
+  padding: 8px;
   box-shadow: var(--shadow-main);
   position: relative;
 }
@@ -145,6 +145,7 @@ body {
   position: relative;
   width: 100%;
   aspect-ratio: 9 / 16; /* Portrait por defecto en móvil */
+  max-height: 52vh; /* Evita que el video sature el alto de pantalla del teléfono */
   background: #050811;
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -389,16 +390,16 @@ body {
   pointer-events: none;
 }
 
-/* ── DASHBOARD (tarjetas debajo del video en móvil) ── */
+/* ── DASHBOARD (tarjetas debajo del video en móvil: 1 columna limpia) ── */
 .dashboard-section {
-  display: grid;
-  grid-template-columns: 1fr 1fr; /* 2 columnas en móvil para aprovechar espacio */
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
 /* La guía ocupa todo el ancho */
 .info-card {
-  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .card {
@@ -407,7 +408,7 @@ body {
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 14px;
+  padding: 10px 12px;
   box-shadow: var(--shadow-main);
 }
 
@@ -421,6 +422,50 @@ body {
 .card-header h3 {
   font-size: 0.92rem;
   font-weight: 700;
+}
+
+/* ── CARD COLLAPSIBLE (toggle de configuración) ── */
+.card-header-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card-header-toggle h3 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.card-header-toggle:active h3 {
+  color: var(--primary-cyan);
+}
+
+.chevron-icon {
+  font-size: 1rem;
+  color: var(--text-muted);
+  line-height: 1;
+  display: inline-block;
+  transform: rotate(0deg);
+  transition: transform 0.22s ease;
+  flex-shrink: 0;
+}
+
+.card-header-toggle.is-open .chevron-icon {
+  transform: rotate(180deg);
+  color: var(--primary-cyan);
+}
+
+.card-collapsible {
+  margin-top: 10px;
 }
 
 .badge-gold {
@@ -448,7 +493,7 @@ body {
 
 #max-jump-val {
   font-family: var(--font-mono);
-  font-size: 2.8rem;
+  font-size: 2.2rem;
   font-weight: 700;
   line-height: 1;
   background: linear-gradient(180deg, #FFD700, #FFA500);
@@ -468,14 +513,309 @@ body {
   color: var(--text-muted);
 }
 
-.calibration-status {
-  background: rgba(5, 8, 17, 0.5);
+/* ── BOTONES TOGGLE COMPACTOS (colapsar secciones) ── */
+.extra-toggle-btn,
+.mode-toggle-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 242, 254, 0.05);
+  border: 1px solid rgba(0, 242, 254, 0.2);
   border-radius: var(--radius-sm);
-  padding: 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background 0.18s ease, color 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+  gap: 6px;
+}
+
+.extra-toggle-btn:active,
+.mode-toggle-btn:active,
+.extra-toggle-btn.is-open,
+.mode-toggle-btn.is-open {
+  background: rgba(0, 242, 254, 0.1);
+  color: var(--primary-cyan);
+  border-color: rgba(0, 242, 254, 0.4);
+}
+
+.mode-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mode-toggle-icon {
+  font-size: 0.9rem;
+}
+
+.control-group {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+/* ── TARJETAS DE MODO DE MEDICIÓN (Mobile-First Compactas) ── */
+.mode-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.mode-card {
+  background: rgba(10, 15, 28, 0.65);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.04), transparent);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  border-radius: inherit;
+}
+
+.mode-card:hover::before { opacity: 1; }
+
+.mode-card:hover {
+  border-color: rgba(0, 242, 254, 0.4);
+}
+
+.mode-card.active {
+  border-color: var(--primary-cyan);
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.07), rgba(79, 70, 229, 0.09));
+  box-shadow: 0 0 0 1px rgba(0, 242, 254, 0.2);
+}
+
+.mode-card.active::before { opacity: 1; }
+
+.mode-card-header {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  font-size: 0.8rem;
+  margin-bottom: 3px;
+}
+
+.mode-icon {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.mode-title-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.mode-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.mode-card.active .mode-name { color: #FFFFFF; }
+
+.mode-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mode-badge-recommended {
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--primary-cyan);
+  border: 1px solid rgba(0, 242, 254, 0.35);
+}
+
+.mode-badge-mobile {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.mode-badge-precise {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.mode-desc {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0 0 4px 0;
+}
+
+.mode-card.active .mode-desc { color: rgba(255, 255, 255, 0.7); }
+
+.mode-pros-cons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mode-pros-cons li {
+  font-size: 0.64rem;
+  line-height: 1.35;
+}
+
+.mode-pros-cons .pro { color: #34d399; }
+
+.mode-pros-cons .con { color: rgba(156, 163, 175, 0.75); }
+
+.control-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.custom-select {
+  background: rgba(5, 8, 17, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  padding: 8px 10px;
+  font-family: var(--font-family);
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.custom-select:focus, .custom-select:hover {
+  border-color: var(--primary-cyan);
+}
+
+.input-with-unit {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.custom-input {
+  width: 100%;
+  background: rgba(5, 8, 17, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--primary-cyan);
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 7px 32px 7px 10px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.custom-input:focus, .custom-input:hover {
+  border-color: var(--primary-cyan);
+}
+
+.input-unit {
+  position: absolute;
+  right: 10px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* ── CONTROLES MOBILE-FIRST DE ESTATURA ── */
+.height-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.auto-height-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--primary-cyan);
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  padding: 2px 6px;
+  border-radius: 12px;
+  letter-spacing: 0.3px;
+  animation: pulseBadge 2s infinite ease-in-out;
+}
+
+@keyframes pulseBadge {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(0.97); }
+}
+
+.mobile-height-chips {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chip-btn {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 8px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip-btn:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(0, 242, 254, 0.5);
+  color: var(--primary-cyan);
+}
+
+.chip-btn.active {
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(79, 70, 229, 0.25));
+  border-color: var(--primary-cyan);
+  color: #FFFFFF;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.3);
+  font-weight: 700;
+}
+
+.calibration-status {
+  background: rgba(5, 8, 17, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  font-size: 0.76rem;
 }
 
 .status-row {
@@ -490,6 +830,15 @@ body {
   color: var(--primary-cyan);
   font-family: var(--font-mono);
   font-size: 0.78rem;
+}
+
+.status-locked {
+  color: var(--accent-green) !important;
+}
+
+.status-calibrating {
+  color: var(--accent-gold) !important;
+  animation: pulse-air 1s infinite alternate;
 }
 
 .help-text {

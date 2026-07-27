@@ -71,14 +71,24 @@ export class JumpController {
       }
     };
 
-    // Toast al calibrar automáticamente el suelo
-    this.jumpModel.onBaselineCalibrated = () => {
-      this.uiView.showToast("✅ Suelo detectado automáticamente", 'success');
+    // Toast al calibrar y fijar automáticamente el suelo
+    this.jumpModel.onBaselineCalibrated = (isLocked) => {
+      if (isLocked) {
+        this.uiView.showToast("🔒 Suelo calibrado y fijado", 'success');
+      } else {
+        this.uiView.showToast("🎯 Suelo detectado automáticamente", 'info');
+      }
     };
 
     // Toast y celebración visual al romper el récord personal
     this.jumpModel.onNewRecord = (peakCm) => {
       this.uiView.triggerRecordCelebration(peakCm);
+    };
+
+    // Notificación al estimar automáticamente la estatura 3D del atleta
+    this.jumpModel.onAutoHeightEstimated = (estimatedCm) => {
+      this.uiView.updateUserHeightInput(estimatedCm);
+      this.uiView.showToast(`📏 Estatura estimada por IA: ${estimatedCm} cm`, 'info');
     };
 
     this.init();
@@ -88,12 +98,31 @@ export class JumpController {
    * Inicializa los componentes de la aplicación y escucha los eventos de la UI.
    */
   private async init(): Promise<void> {
+    // Sincronizar valores iniciales de la UI
+    this.uiView.setInitialValues(
+      this.jumpModel.getUserHeightCm(),
+      this.jumpModel.getMeasurementMode()
+    );
+
     // Vincular eventos de usuario desde la Vista UI
     this.uiView.bindEvents({
       onToggleCamera: () => this.toggleCamera(),
       onFlipCamera: () => this.flipCamera(),
       onSelectVideoFile: (file) => this.loadVideoFile(file),
-      onResetRecord: () => this.resetRecord()
+      onResetRecord: () => this.resetRecord(),
+      onRecalibrateBaseline: () => {
+        this.jumpModel.recalibrateBaseline();
+        this.uiView.showToast("🎯 Suelo restablecido. Quedate erguido 1.5s.", 'info');
+      },
+      onChangeUserHeight: (heightCm) => {
+        this.jumpModel.setUserHeightCm(heightCm);
+        this.uiView.showToast(`📏 Estatura actualizada: ${heightCm} cm`, 'success');
+      },
+      onChangeMeasurementMode: (mode) => {
+        this.jumpModel.setMeasurementMode(mode);
+        const modeLabel = mode === 'fusion' ? 'Fusión IA' : mode === 'flight_time' ? 'Tiempo de Vuelo' : 'Desplazamiento';
+        this.uiView.showToast(`📊 Modo activo: ${modeLabel}`, 'info');
+      }
     });
 
     try {
@@ -173,6 +202,7 @@ export class JumpController {
     });
 
     this.activeSource = 'video';
+    this.jumpModel.setIsVideoMode(true);
     this.uiView.setSourceState('video', file.name);
 
     // Iniciar bucle de procesamiento de cuadros
@@ -187,6 +217,7 @@ export class JumpController {
    */
   private async startCamera(): Promise<void> {
     this.stopActiveSource();
+    this.jumpModel.setIsVideoMode(false);
 
     try {
       const mobile = this.isMobile();
@@ -304,8 +335,11 @@ export class JumpController {
             (s, i) => s + ((landmarks[i]?.visibility) ?? 0), 0
           ) / keyIndices.length;
 
-          // 2. Procesar lógica del salto en el JumpModel
-          this.jumpModel.processFrame(landmarks, videoEl.videoHeight, nowMs);
+          // 2. Procesar lógica del salto en el JumpModel con landmarks 2D y 3D (worldLandmarks)
+          const worldLandmarks = (poseResult.worldLandmarks && poseResult.worldLandmarks.length > 0)
+            ? poseResult.worldLandmarks[0]
+            : undefined;
+          this.jumpModel.processFrame(landmarks, videoEl.videoHeight, nowMs, worldLandmarks);
         } else {
           this.lastAvgVisibility = 0;
 
@@ -322,6 +356,8 @@ export class JumpController {
       this.canvasView.render(
         this.lastLandmarks,
         this.jumpModel.getBaselineHipY(),
+        this.jumpModel.getBaselineAnkleY(),
+        this.jumpModel.getIsBaselineLocked(),
         this.jumpModel.getPeakHipY(),
         this.jumpModel.getCurrentJumpCm(),
         this.jumpModel.getCurrentState(),
@@ -333,8 +369,10 @@ export class JumpController {
         this.jumpModel.getCurrentJumpCm(),
         this.jumpModel.getMaxJumpCm(),
         this.jumpModel.getCurrentState(),
-        this.jumpModel.getBaselineHipY(),
-        this.jumpModel.getLastFlightTimeMs()
+        this.jumpModel.getIsBaselineLocked(),
+        this.jumpModel.getLastFlightTimeMs(),
+        this.jumpModel.getLastDisplacementHeightCm(),
+        this.lastAvgVisibility
       );
     }
 

@@ -11,13 +11,16 @@
  * ============================================================================
  */
 
-import { JumpState } from "../models/JumpModel";
+import { JumpState, MeasurementMode } from "../models/JumpModel";
 
 export interface UIEventCallbacks {
   onToggleCamera: () => void;
   onFlipCamera: () => void;
   onSelectVideoFile: (file: File) => void;
   onResetRecord: () => void;
+  onRecalibrateBaseline: () => void;
+  onChangeUserHeight: (heightCm: number) => void;
+  onChangeMeasurementMode: (mode: MeasurementMode) => void;
 }
 
 export class UIView {
@@ -27,7 +30,8 @@ export class UIView {
   private jumpStateBadge: HTMLElement;
   private jumpStateText: HTMLElement;
   private flightTimeText: HTMLElement;
-  private baselineYText: HTMLElement;
+  private displacementText: HTMLElement;
+  private baselineStatusText: HTMLElement;
   private lastJumpTimeText: HTMLElement;
 
   private loadingOverlay: HTMLElement;
@@ -39,7 +43,13 @@ export class UIView {
   private btnUploadVideoText: HTMLElement;
   private videoFileInput: HTMLInputElement;
   private btnResetRecord: HTMLButtonElement;
+  private btnRecalibrate: HTMLButtonElement;
   private btnFlipCam: HTMLButtonElement;
+
+  private userHeightInput: HTMLInputElement;
+  private measurementModeSelect: HTMLSelectElement;
+  private autoHeightBadge: HTMLElement;
+  private heightChips: HTMLButtonElement[];
 
   private videoElement: HTMLVideoElement;
   private canvasElement: HTMLCanvasElement;
@@ -53,7 +63,7 @@ export class UIView {
   private lastLiveHeight: string = '';
   private lastMaxJump: string = '';
   private lastState: string = '';
-  private lastBaselineY: string = '';
+  private lastBaselineStatus: string = '';
   private lastSignalLevel: number = -1;
 
   // Estado de notificación "Listo para saltar"
@@ -67,7 +77,8 @@ export class UIView {
     this.jumpStateBadge = this.getElement("jump-state-badge");
     this.jumpStateText = this.getElement("jump-state-text");
     this.flightTimeText = this.getElement("flight-time-text");
-    this.baselineYText = this.getElement("baseline-y-text");
+    this.displacementText = this.getElement("displacement-text");
+    this.baselineStatusText = this.getElement("baseline-status-text");
     this.lastJumpTimeText = this.getElement("last-jump-time");
 
     this.loadingOverlay = this.getElement("loading-overlay");
@@ -81,7 +92,13 @@ export class UIView {
     this.videoFileInput = this.getElement("video-file-input") as HTMLInputElement;
 
     this.btnResetRecord = this.getElement("btn-reset-record") as HTMLButtonElement;
+    this.btnRecalibrate = this.getElement("btn-recalibrate") as HTMLButtonElement;
     this.btnFlipCam = this.getElement("btn-flip-cam") as HTMLButtonElement;
+
+    this.userHeightInput = this.getElement("user-height-input") as HTMLInputElement;
+    this.measurementModeSelect = this.getElement("measurement-mode-select") as HTMLSelectElement;
+    this.autoHeightBadge = this.getElement("auto-height-badge");
+    this.heightChips = Array.from(document.querySelectorAll<HTMLButtonElement>("#mobile-height-chips .chip-btn"));
 
     this.videoElement = this.getElement("webcam") as HTMLVideoElement;
     this.canvasElement = this.getElement("output-canvas") as HTMLCanvasElement;
@@ -110,6 +127,44 @@ export class UIView {
 
   public getCanvasElement(): HTMLCanvasElement {
     return this.canvasElement;
+  }
+
+  public setInitialValues(userHeightCm: number, mode: MeasurementMode): void {
+    this.userHeightInput.value = String(userHeightCm);
+    this.measurementModeSelect.value = mode;
+    this.highlightActiveChip(userHeightCm);
+  }
+
+  /**
+   * Actualiza el valor de estatura en la interfaz (ej. cuando la IA la estima automáticamente o se cambia por chip)
+   */
+  public updateUserHeightInput(heightCm: number, isAutoEstimated: boolean = true): void {
+    this.userHeightInput.value = String(heightCm);
+    this.highlightActiveChip(heightCm);
+    this.setAutoHeightBadgeVisible(isAutoEstimated);
+  }
+
+  /**
+   * Resalta el chip de estatura correspondiente al valor actual
+   */
+  public highlightActiveChip(heightCm: number): void {
+    this.heightChips.forEach((chip) => {
+      const h = parseFloat(chip.getAttribute("data-height") ?? "0");
+      if (Math.abs(h - heightCm) <= 4) {
+        chip.classList.add("active");
+      } else {
+        chip.classList.remove("active");
+      }
+    });
+  }
+
+  /**
+   * Muestra u oculta el badge indicador "Estimado por IA"
+   */
+  public setAutoHeightBadgeVisible(visible: boolean): void {
+    if (this.autoHeightBadge) {
+      this.autoHeightBadge.style.display = visible ? "inline-block" : "none";
+    }
   }
 
   /**
@@ -145,7 +200,33 @@ export class UIView {
     });
 
     this.btnResetRecord.addEventListener("click", () => callbacks.onResetRecord());
+    this.btnRecalibrate.addEventListener("click", () => callbacks.onRecalibrateBaseline());
     this.btnFlipCam.addEventListener("click", () => callbacks.onFlipCamera());
+
+    // Eventos para chips táctiles de estatura (1-Tap para móvil)
+    this.heightChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const val = parseFloat(chip.getAttribute("data-height") ?? "172");
+        this.userHeightInput.value = String(val);
+        this.highlightActiveChip(val);
+        this.setAutoHeightBadgeVisible(false); // Selección manual desactiva badge de IA
+        callbacks.onChangeUserHeight(val);
+      });
+    });
+
+    this.userHeightInput.addEventListener("change", () => {
+      const val = parseFloat(this.userHeightInput.value);
+      if (!isNaN(val) && val >= 120 && val <= 230) {
+        this.highlightActiveChip(val);
+        this.setAutoHeightBadgeVisible(false); // Ajuste manual desactiva badge de IA
+        callbacks.onChangeUserHeight(val);
+      }
+    });
+
+    this.measurementModeSelect.addEventListener("change", () => {
+      const mode = this.measurementModeSelect.value as MeasurementMode;
+      callbacks.onChangeMeasurementMode(mode);
+    });
   }
 
   /**
@@ -176,8 +257,9 @@ export class UIView {
     currentJumpCm: number,
     maxJumpCm: number,
     state: JumpState,
-    baselineY: number | null,
+    isBaselineLocked: boolean,
     flightTimeMs: number,
+    displacementCm: number = 0,
     avgVisibility: number = 0
   ): void {
     // 1. Altura en tiempo real (solo actualizar si cambia)
@@ -206,17 +288,23 @@ export class UIView {
       this.lastJumpTimeText.textContent = `Último vuelo: ${(flightTimeMs / 1000).toFixed(2)}s`;
     }
 
-    // 5. Baseline (solo actualizar si cambia)
-    const baselineStr = baselineY !== null ? `${Math.round(baselineY)} px` : '-- px';
-    if (baselineStr !== this.lastBaselineY) {
-      this.baselineYText.textContent = baselineStr;
-      this.lastBaselineY = baselineStr;
+    // 5. Desplazamiento
+    if (displacementCm > 0) {
+      this.displacementText.textContent = `${displacementCm.toFixed(1)} cm`;
     }
 
-    // 6. Indicador de calidad de señal
+    // 6. Estado Baseline Suelo
+    const baselineStatusStr = isBaselineLocked ? '🔒 Fijado' : '⏳ Calibrando';
+    if (baselineStatusStr !== this.lastBaselineStatus) {
+      this.baselineStatusText.textContent = baselineStatusStr;
+      this.baselineStatusText.className = isBaselineLocked ? 'status-locked' : 'status-calibrating';
+      this.lastBaselineStatus = baselineStatusStr;
+    }
+
+    // 7. Indicador de calidad de señal
     this.updateSignalQuality(avgVisibility, state);
 
-    // 7. Toast "Listo para saltar" cuando la señal pasa de mala a buena por primera vez
+    // 8. Toast "Listo para saltar" cuando la señal pasa de mala a buena por primera vez
     if (!this.readyToastShown && this.lastAvgVisibility < 0.5 && avgVisibility >= 0.7) {
       this.showToast("🎯 ¡Listo para saltar!", 'success', 3000);
       this.readyToastShown = true;

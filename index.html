@@ -85,6 +85,10 @@
           </div>
             <!-- Segunda fila de botones -->
             <div class="camera-toolbar toolbar-row2">
+              <button id="btn-recalibrate" class="btn btn-secondary">
+                <span class="btn-icon">🎯</span>
+                <span>Calibrar Suelo</span>
+              </button>
               <button id="btn-reset-record" class="btn btn-danger" disabled>
                 <span class="btn-icon">🗑️</span>
                 <span>Borrar Récord</span>
@@ -108,23 +112,125 @@
             <p class="stat-footer" id="last-jump-time">Esperando primer salto...</p>
           </div>
 
-          <!-- Datos del Salto -->
+          <!-- Configuración y Datos del Salto -->
           <div class="card config-card">
             <div class="card-header">
-              <h3>📊 Datos del Salto</h3>
+              <h3>⚙️ Configuración y Datos</h3>
             </div>
-            <div class="calibration-status">
+
+            <!-- Selector de Modo de Medición por Tarjetas -->
+            <div class="control-group">
+              <!-- select oculto para mantener compatibilidad con UIView -->
+              <select id="measurement-mode-select" style="display:none;">
+                <option value="fusion" selected>Fusión IA</option>
+                <option value="flight_time">Tiempo de Vuelo</option>
+                <option value="displacement">Desplazamiento Visual</option>
+              </select>
+
+              <!-- Cabecera del selector con botón de colapso -->
+              <button type="button" class="mode-toggle-btn" id="mode-toggle" aria-expanded="true">
+                <span class="mode-toggle-label">
+                  <span class="mode-toggle-icon" id="mode-active-icon">✨</span>
+                  <span class="control-label" style="margin:0;">Modo: <strong id="mode-active-name">Fusión IA</strong></span>
+                </span>
+                <span class="chevron-icon" aria-hidden="true">▾</span>
+              </button>
+
+              <div class="mode-cards" id="mode-cards">
+
+                <!-- Modo: Fusión IA -->
+                <button type="button" class="mode-card active" data-mode="fusion" data-icon="✨" data-label="Fusión IA" id="mode-card-fusion" aria-pressed="true">
+                  <div class="mode-card-header">
+                    <span class="mode-icon">✨</span>
+                    <div class="mode-title-group">
+                      <span class="mode-name">Fusión IA</span>
+                      <span class="mode-badge mode-badge-recommended">Recomendado</span>
+                    </div>
+                  </div>
+                  <p class="mode-desc">
+                    Combina <strong>tiempo de vuelo</strong> y <strong>desplazamiento real</strong> de cadera mediante 
+                    pesos Gaussianos. A mayor coherencia entre ambas fuentes, más fiable es el resultado.
+                  </p>
+                  <ul class="mode-pros-cons">
+                    <li class="pro">✔ Corrige encogimiento de piernas (Tuck Jump)</li>
+                    <li class="pro">✔ Funciona bien desde el suelo o en ángulo</li>
+                    <li class="con">✗ Requiere estatura del atleta aproximada</li>
+                  </ul>
+                </button>
+
+                <!-- Modo: Tiempo de Vuelo -->
+                <button type="button" class="mode-card" data-mode="flight_time" data-icon="⏱️" data-label="Tiempo de Vuelo" id="mode-card-flight_time" aria-pressed="false">
+                  <div class="mode-card-header">
+                    <span class="mode-icon">⏱️</span>
+                    <div class="mode-title-group">
+                      <span class="mode-name">Tiempo de Vuelo</span>
+                      <span class="mode-badge mode-badge-mobile">Ideal para móvil</span>
+                    </div>
+                  </div>
+                  <p class="mode-desc">
+                    Usa la fórmula cinemática <strong>h = g·t²/8</strong> basada exclusivamente en el tiempo entre 
+                    despegue y aterrizaje. No depende de la estatura ni del ángulo de la cámara.
+                  </p>
+                  <ul class="mode-pros-cons">
+                    <li class="pro">✔ No necesita saber la estatura</li>
+                    <li class="pro">✔ Inmune al ángulo de la cámara</li>
+                    <li class="con">✗ Se infla si aterrizas con piernas dobladas</li>
+                  </ul>
+                </button>
+
+                <!-- Modo: Desplazamiento Visual -->
+                <button type="button" class="mode-card" data-mode="displacement" data-icon="📏" data-label="Desplazamiento" id="mode-card-displacement" aria-pressed="false">
+                  <div class="mode-card-header">
+                    <span class="mode-icon">📏</span>
+                    <div class="mode-title-group">
+                      <span class="mode-name">Desplazamiento Visual</span>
+                      <span class="mode-badge mode-badge-precise">Alta precisión visual</span>
+                    </div>
+                  </div>
+                  <p class="mode-desc">
+                    Mide directamente el <strong>desplazamiento en píxeles de la cadera</strong> escalado por tu 
+                    estatura real. Muy preciso cuando la cámara está de frente y el encuadre es completo.
+                  </p>
+                  <ul class="mode-pros-cons">
+                    <li class="pro">✔ No se ve afectado por encogimiento al aterrizar</li>
+                    <li class="pro">✔ Preciso con cámara frontal a nivel del suelo</li>
+                    <li class="con">✗ Sensible al ángulo y distorsión de la cámara</li>
+                  </ul>
+                </button>
+
+              </div>
+            </div>
+
+            <div class="control-group" style="margin-top: 8px;">
+              <div class="height-header-row">
+                <label class="control-label" for="user-height-input">Estatura del Atleta</label>
+                <span id="auto-height-badge" class="auto-height-badge" style="display: none;">✨ Estimado por IA</span>
+              </div>
+              <div class="input-with-unit">
+                <input type="number" id="user-height-input" class="custom-input" min="120" max="230" value="172" placeholder="172" />
+                <span class="input-unit">cm</span>
+              </div>
+              <!-- Chips táctiles rápidos para móvil (1-Tap sin teclado) -->
+              <div class="mobile-height-chips" id="mobile-height-chips">
+                <button type="button" class="chip-btn" data-height="160">👦 1.60m</button>
+                <button type="button" class="chip-btn" data-height="172">🧍 1.72m</button>
+                <button type="button" class="chip-btn" data-height="185">🏃 1.85m</button>
+                <button type="button" class="chip-btn" data-height="195">🏀 1.95m</button>
+              </div>
+            </div>
+
+            <div class="calibration-status" style="margin-top: 12px;">
               <div class="status-row">
-                <span>Método:</span>
-                <strong id="method-text">Física (t de vuelo)</strong>
+                <span>Estado Suelo:</span>
+                <strong id="baseline-status-text" class="status-locked">🔒 Fijado</strong>
               </div>
               <div class="status-row">
                 <span>Tiempo en Aire:</span>
                 <strong id="flight-time-text">-- s</strong>
               </div>
               <div class="status-row">
-                <span>Nivel Suelo (Y):</span>
-                <strong id="baseline-y-text">-- px</strong>
+                <span>Desplazamiento (ΔY):</span>
+                <strong id="displacement-text">-- cm</strong>
               </div>
               <div class="status-row">
                 <span>Señal de Pose:</span>
@@ -138,9 +244,7 @@
                 </div>
               </div>
             </div>
-            <small class="help-text" style="margin-top: 10px; display: block;">
-              Usa <strong>h = g × t² / 8</strong>. No necesita estatura.
-            </small>
+            </div>
           </div>
 
         <!-- Guía Rápida Interactiva y Visual -->
@@ -199,6 +303,88 @@
     </footer>
   </div>
 
+  <script>
+    // Interacción nativa de las tarjetas de modo (sin depender de Vite/TS)
+    document.addEventListener('DOMContentLoaded', function () {
+      var modeCards = document.querySelectorAll('#mode-cards .mode-card');
+      var modeSelect = document.getElementById('measurement-mode-select');
+
+      modeCards.forEach(function (card) {
+        card.addEventListener('click', function () {
+          modeCards.forEach(function (c) {
+            c.classList.remove('active');
+            c.setAttribute('aria-pressed', 'false');
+          });
+          card.classList.add('active');
+          card.setAttribute('aria-pressed', 'true');
+          if (modeSelect) {
+            modeSelect.value = card.getAttribute('data-mode') || 'fusion';
+            modeSelect.dispatchEvent(new Event('change'));
+          }
+        });
+      });
+
+      // Sincronizar tarjeta activa si el select cambia programáticamente
+      if (modeSelect) {
+        modeSelect.addEventListener('change', function () {
+          modeCards.forEach(function (c) {
+            var isActive = c.getAttribute('data-mode') === modeSelect.value;
+            c.classList.toggle('active', isActive);
+            c.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+          });
+        });
+      }
+
+      // Toggle collapsible de Estatura y Datos
+      var extraToggle = document.getElementById('extra-toggle');
+      var extraBody = document.getElementById('extra-body');
+      if (extraToggle && extraBody) {
+        extraToggle.addEventListener('click', function () {
+          var isOpen = extraToggle.getAttribute('aria-expanded') === 'true';
+          if (isOpen) {
+            extraBody.style.display = 'none';
+            extraToggle.setAttribute('aria-expanded', 'false');
+            extraToggle.classList.remove('is-open');
+          } else {
+            extraBody.style.display = 'block';
+            extraToggle.setAttribute('aria-expanded', 'true');
+            extraToggle.classList.add('is-open');
+          }
+        });
+      }
+
+      // Toggle de las tarjetas de modo (mode-toggle, si existe)
+      var modeToggleBtn = document.getElementById('mode-toggle');
+      var modeCardsEl = document.getElementById('mode-cards');
+      var modeActiveIcon = document.getElementById('mode-active-icon');
+      var modeActiveName = document.getElementById('mode-active-name');
+      if (modeToggleBtn && modeCardsEl) {
+        modeToggleBtn.addEventListener('click', function () {
+          var isOpen = modeToggleBtn.getAttribute('aria-expanded') === 'true';
+          if (isOpen) {
+            modeCardsEl.style.display = 'none';
+            modeToggleBtn.setAttribute('aria-expanded', 'false');
+            modeToggleBtn.classList.remove('is-open');
+          } else {
+            modeCardsEl.style.display = 'flex';
+            modeToggleBtn.setAttribute('aria-expanded', 'true');
+            modeToggleBtn.classList.add('is-open');
+          }
+        });
+        // Al seleccionar un modo, actualizar el label del botón toggle y cerrar
+        modeCards.forEach(function (card) {
+          card.addEventListener('click', function () {
+            if (modeActiveIcon) modeActiveIcon.textContent = card.getAttribute('data-icon') || '';
+            if (modeActiveName) modeActiveName.textContent = card.getAttribute('data-label') || '';
+            // Cerrar las tarjetas tras seleccionar
+            modeCardsEl.style.display = 'none';
+            modeToggleBtn.setAttribute('aria-expanded', 'false');
+            modeToggleBtn.classList.remove('is-open');
+          });
+        });
+      }
+    });
+  </script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 

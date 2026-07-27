@@ -72,7 +72,10 @@ export class PoseModel {
               delegate
             },
             runningMode: "VIDEO",
-            numPoses: 1
+            numPoses: 1,
+            minPoseDetectionConfidence: 0.5,
+            minPosePresenceConfidence: 0.5,
+            minTrackingConfidence: 0.5
           }),
           new Promise<never>((_, reject) =>
             setTimeout(
@@ -99,7 +102,10 @@ export class PoseModel {
             delegate: "CPU"
           },
           runningMode: "VIDEO",
-          numPoses: 1
+          numPoses: 1,
+          minPoseDetectionConfidence: 0.5,
+          minPosePresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5
         });
         console.log(`[PoseModel] PoseLandmarker (${modelLabel}) inicializado en modo CPU.`);
       }

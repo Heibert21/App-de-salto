@@ -56,9 +56,15 @@ export class CanvasView {
    * Renderiza el marco visual completo: esqueleto, líneas de nivel y métricas.
    * @param avgVisibility Visibilidad promedio de los keypoints [0, 1]
    */
+  /**
+   * Renderiza el marco visual completo: esqueleto, líneas de nivel y métricas.
+   * @param avgVisibility Visibilidad promedio de los keypoints [0, 1]
+   */
   public render(
     landmarks: NormalizedLandmark[] | null,
     baselineHipY: number | null,
+    baselineAnkleY: number | null,
+    isBaselineLocked: boolean,
     peakHipY: number,
     currentJumpCm: number,
     jumpState: JumpState,
@@ -84,9 +90,9 @@ export class CanvasView {
     // 3. Dibujar barra de confianza de pose (esquina superior derecha)
     this.drawConfidenceBar(width, avgVisibility);
 
-    // 4. Dibujar línea base del suelo (Baseline Y) — con pulso si PREPARING
-    if (baselineHipY !== null) {
-      this.drawBaselineLine(width, baselineHipY, jumpState);
+    // 4. Dibujar línea base del suelo (Baseline Cadera y Tobillos)
+    if (baselineHipY !== null && baselineAnkleY !== null) {
+      this.drawBaselineLines(width, baselineHipY, baselineAnkleY, jumpState, isBaselineLocked);
     }
 
     // 5. Dibujar línea del pico máximo de salto si está activo o en vuelo
@@ -258,49 +264,55 @@ export class CanvasView {
     this.ctx.restore();
   }
 
-  // ── Línea baseline ──────────────────────────────────────────────────────
+  // ── Líneas baseline (Cadera y Tobillos/Suelo) ──────────────────────────
 
   /**
-   * Dibuja la línea horizontal del nivel del suelo (Baseline Hip Y).
-   * Pulsa visualmente cuando el estado es PREPARING.
+   * Dibuja las líneas horizontales del nivel de suelo en los pies y cadera.
    */
-  private drawBaselineLine(width: number, y: number, jumpState: JumpState): void {
+  private drawBaselineLines(
+    width: number,
+    hipY: number,
+    ankleY: number,
+    jumpState: JumpState,
+    isLocked: boolean
+  ): void {
     const isPreparing = jumpState === 'PREPARING';
 
-    let alpha: number;
-    let lineWidth: number;
-    let dashLen: number;
-
-    if (isPreparing) {
-      // Animación sinusoidal de pulso en la línea baseline
-      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(this.pulsePhase * 1.5));
-      alpha = 0.5 + 0.5 * pulse;
-      lineWidth = 2 + 2 * pulse;
-      dashLen = 8;
-    } else {
-      alpha = 0.8;
-      lineWidth = 2;
-      dashLen = 8;
-    }
-
     this.ctx.save();
+
+    // 1. Línea Base en Suelo (Tobillos)
     this.ctx.beginPath();
-    this.ctx.strokeStyle = `rgba(0, 242, 254, ${alpha})`;
-    this.ctx.lineWidth = lineWidth;
-    this.ctx.setLineDash([dashLen, 6]);
-    this.ctx.moveTo(0, y);
-    this.ctx.lineTo(width, y);
+    const ankleAlpha = isLocked ? 0.9 : (0.4 + 0.4 * Math.abs(Math.sin(this.pulsePhase * 2)));
+    this.ctx.strokeStyle = isLocked ? "rgba(0, 230, 118, 0.85)" : `rgba(255, 215, 0, ${ankleAlpha})`;
+    this.ctx.lineWidth = isLocked ? 2.5 : 2;
+    this.ctx.setLineDash(isLocked ? [] : [6, 4]);
+    this.ctx.moveTo(0, ankleY);
+    this.ctx.lineTo(width, ankleY);
     this.ctx.stroke();
 
-    // Etiqueta de suelo
-    this.ctx.fillStyle = "#00F2FE";
-    this.ctx.font = "bold 12px 'Space Mono', monospace";
+    // Etiqueta Suelo
+    this.ctx.fillStyle = isLocked ? "#00E676" : "#FFD700";
+    this.ctx.font = "bold 11px 'Space Mono', monospace";
     this.ctx.textAlign = "left";
+    const statusText = isLocked ? "🔒 SUELO FIJADO" : "⏳ CALIBRANDO SUELO (Quedate quieto)";
+    this.ctx.fillText(`--- ${statusText} ---`, 16, ankleY - 6);
+
+    // 2. Línea Base de Cadera
+    this.ctx.beginPath();
+    this.ctx.strokeStyle = `rgba(0, 242, 254, ${isPreparing ? 0.9 : 0.45})`;
+    this.ctx.lineWidth = 1.5;
+    this.ctx.setLineDash([8, 6]);
+    this.ctx.moveTo(0, hipY);
+    this.ctx.lineTo(width, hipY);
+    this.ctx.stroke();
+
+    this.ctx.fillStyle = "rgba(0, 242, 254, 0.7)";
     this.ctx.fillText(
-      isPreparing ? "--- FLEXIONANDO ---" : "--- LÍNEA BASE (SUELO) ---",
+      isPreparing ? "--- FLEXIONANDO ---" : "--- REF. CADERA ---",
       16,
-      y - 6
+      hipY - 6
     );
+
     this.ctx.restore();
   }
 
