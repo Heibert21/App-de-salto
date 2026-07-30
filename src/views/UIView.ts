@@ -11,16 +11,13 @@
  * ============================================================================
  */
 
-import { JumpState, MeasurementMode } from "../models/JumpModel";
+import { JumpState } from "../models/JumpModel";
 
 export interface UIEventCallbacks {
-  onToggleCamera: () => void;
-  onFlipCamera: () => void;
   onSelectVideoFile: (file: File) => void;
   onResetRecord: () => void;
-  onRecalibrateBaseline: () => void;
   onChangeUserHeight: (heightCm: number) => void;
-  onChangeMeasurementMode: (mode: MeasurementMode) => void;
+  onShowRoutine?: () => void;
 }
 
 export class UIView {
@@ -37,27 +34,38 @@ export class UIView {
   private loadingOverlay: HTMLElement;
   private loadingText: HTMLElement;
 
-  private btnToggleCam: HTMLButtonElement;
-  private btnToggleCamText: HTMLElement;
   private btnUploadVideo: HTMLButtonElement;
   private btnUploadVideoText: HTMLElement;
   private videoFileInput: HTMLInputElement;
   private btnResetRecord: HTMLButtonElement;
-  private btnRecalibrate: HTMLButtonElement;
-  private btnFlipCam: HTMLButtonElement;
 
   private userHeightInput: HTMLInputElement;
-  private measurementModeSelect: HTMLSelectElement;
   private autoHeightBadge: HTMLElement;
   private heightChips: HTMLButtonElement[];
-
   private videoElement: HTMLVideoElement;
   private canvasElement: HTMLCanvasElement;
+  // Elementos de comparación y rutina en modal de pantalla completa
+  private resultsModal: HTMLElement;
+  private modalJumpVal: HTMLElement;
+  private modalComparison: HTMLElement;
+  private modalPrevVal: HTMLElement;
+  private modalDiffBadge: HTMLElement;
+  private modalDiffVal: HTMLElement;
+  private modalFeedback: HTMLElement;
+  private modalRoutineLevel: HTMLElement;
+  private modalRoutineDesc: HTMLElement;
+  private modalRoutineExercises: HTMLElement;
+  private btnCloseModal: HTMLElement;
+  private btnModalDismiss: HTMLElement;
+  private btnShowRoutine: HTMLButtonElement;
+
+
 
   // Elementos de señal y toasts
   private signalBars: HTMLElement[];
   private signalLabel: HTMLElement;
   private toastContainer: HTMLElement;
+  private confettiEffect: ConfettiEffect;
 
   // Cache de últimos valores para evitar escrituras redundantes al DOM (60fps)
   private lastLiveHeight: string = '';
@@ -84,23 +92,17 @@ export class UIView {
     this.loadingOverlay = this.getElement("loading-overlay");
     this.loadingText = this.getElement("loading-text");
 
-    this.btnToggleCam = this.getElement("btn-toggle-cam") as HTMLButtonElement;
-    this.btnToggleCamText = this.getElement("btn-toggle-cam-text");
-
     this.btnUploadVideo = this.getElement("btn-upload-video") as HTMLButtonElement;
     this.btnUploadVideoText = this.getElement("btn-upload-video-text");
     this.videoFileInput = this.getElement("video-file-input") as HTMLInputElement;
 
     this.btnResetRecord = this.getElement("btn-reset-record") as HTMLButtonElement;
-    this.btnRecalibrate = this.getElement("btn-recalibrate") as HTMLButtonElement;
-    this.btnFlipCam = this.getElement("btn-flip-cam") as HTMLButtonElement;
 
     this.userHeightInput = this.getElement("user-height-input") as HTMLInputElement;
-    this.measurementModeSelect = this.getElement("measurement-mode-select") as HTMLSelectElement;
     this.autoHeightBadge = this.getElement("auto-height-badge");
     this.heightChips = Array.from(document.querySelectorAll<HTMLButtonElement>("#mobile-height-chips .chip-btn"));
 
-    this.videoElement = this.getElement("webcam") as HTMLVideoElement;
+    this.videoElement = this.getElement("video-player") as HTMLVideoElement;
     this.canvasElement = this.getElement("output-canvas") as HTMLCanvasElement;
 
     // Indicador de calidad de señal
@@ -111,6 +113,33 @@ export class UIView {
     ];
     this.signalLabel = this.getElement("signal-label");
     this.toastContainer = this.getElement("toast-container");
+
+    // Elementos de comparación y rutina en modal de pantalla completa
+    this.resultsModal = this.getElement("results-modal");
+    this.modalJumpVal = this.getElement("modal-jump-val");
+    this.modalComparison = this.getElement("modal-comparison");
+    this.modalPrevVal = this.getElement("modal-prev-val");
+    this.modalDiffBadge = this.getElement("modal-diff-badge");
+    this.modalDiffVal = this.getElement("modal-diff-val");
+    this.modalFeedback = this.getElement("modal-feedback");
+    this.modalRoutineLevel = this.getElement("modal-routine-level");
+    this.modalRoutineDesc = this.getElement("modal-routine-desc");
+    this.modalRoutineExercises = this.getElement("modal-routine-exercises");
+    this.btnCloseModal = this.getElement("btn-close-modal");
+    this.btnModalDismiss = this.getElement("btn-modal-dismiss");
+    this.btnShowRoutine = this.getElement("btn-show-routine") as HTMLButtonElement;
+
+
+
+    // Configurar cierres nativos del modal
+    const closeModal = () => {
+      this.resultsModal.style.display = "none";
+    };
+    this.btnCloseModal.addEventListener("click", closeModal);
+    this.btnModalDismiss.addEventListener("click", closeModal);
+
+    const confettiCanvas = this.getElement("confetti-canvas") as HTMLCanvasElement;
+    this.confettiEffect = new ConfettiEffect(confettiCanvas);
   }
 
   private getElement(id: string): HTMLElement {
@@ -129,9 +158,8 @@ export class UIView {
     return this.canvasElement;
   }
 
-  public setInitialValues(userHeightCm: number, mode: MeasurementMode): void {
+  public setInitialValues(userHeightCm: number): void {
     this.userHeightInput.value = String(userHeightCm);
-    this.measurementModeSelect.value = mode;
     this.highlightActiveChip(userHeightCm);
   }
 
@@ -168,23 +196,9 @@ export class UIView {
   }
 
   /**
-   * Configura el modo espejo (Mirror) para la cámara web, desactivándolo para archivos de video.
-   */
-  public setMirrorMode(enable: boolean): void {
-    if (enable) {
-      this.videoElement.classList.add("mirror");
-      this.canvasElement.classList.add("mirror");
-    } else {
-      this.videoElement.classList.remove("mirror");
-      this.canvasElement.classList.remove("mirror");
-    }
-  }
-
-  /**
    * Vincula los controladores de eventos de usuario a los callbacks.
    */
   public bindEvents(callbacks: UIEventCallbacks): void {
-    this.btnToggleCam.addEventListener("click", () => callbacks.onToggleCamera());
 
     // Botón de subir video -> abre el explorador de archivos
     this.btnUploadVideo.addEventListener("click", () => {
@@ -200,8 +214,6 @@ export class UIView {
     });
 
     this.btnResetRecord.addEventListener("click", () => callbacks.onResetRecord());
-    this.btnRecalibrate.addEventListener("click", () => callbacks.onRecalibrateBaseline());
-    this.btnFlipCam.addEventListener("click", () => callbacks.onFlipCamera());
 
     // Eventos para chips táctiles de estatura (1-Tap para móvil)
     this.heightChips.forEach((chip) => {
@@ -223,17 +235,11 @@ export class UIView {
       }
     });
 
-    this.measurementModeSelect.addEventListener("change", () => {
-      const mode = this.measurementModeSelect.value as MeasurementMode;
-      callbacks.onChangeMeasurementMode(mode);
+    this.btnShowRoutine.addEventListener("click", () => {
+      if (callbacks.onShowRoutine) {
+        callbacks.onShowRoutine();
+      }
     });
-  }
-
-  /**
-   * Muestra u oculta el botón de cambio de cámara (solo cuando la cámara está activa)
-   */
-  public setFlipButtonVisible(visible: boolean): void {
-    this.btnFlipCam.style.display = visible ? "flex" : "none";
   }
 
   /**
@@ -382,6 +388,7 @@ export class UIView {
     }, 1500);
 
     this.showToast(`🏆 ¡NUEVO RÉCORD! ${peakCm.toFixed(1)} cm`, 'success', 4000);
+    this.confettiEffect.start();
   }
 
   /**
@@ -440,49 +447,200 @@ export class UIView {
   }
 
   /**
-   * Actualiza la interfaz según la fuente activa (Cámara vs Video vs Inactivo)
+   * Actualiza la interfaz según la fuente activa (Video vs Inactivo)
    */
-  public setSourceState(mode: 'camera' | 'video' | 'none', fileName?: string): void {
+  public setSourceState(mode: 'video' | 'none', fileName?: string): void {
     // Resetear el toast de "Listo" al cambiar fuente
     this.readyToastShown = false;
     this.lastAvgVisibility = 0;
     this.lastSignalLevel = -1;
 
-    if (mode === 'camera') {
-      this.btnToggleCamText.textContent = "Detener Cámara";
-      this.btnToggleCam.classList.remove("btn-primary");
-      this.btnToggleCam.classList.add("btn-danger");
-
-      this.btnUploadVideoText.textContent = "Subir Video";
-      this.btnUploadVideo.classList.remove("btn-primary");
-      this.btnUploadVideo.classList.add("btn-secondary");
-
-      this.btnResetRecord.disabled = false;
-    } else if (mode === 'video') {
-      this.btnToggleCamText.textContent = "Usar Cámara";
-      this.btnToggleCam.classList.remove("btn-danger");
-      this.btnToggleCam.classList.add("btn-secondary");
-
+    if (mode === 'video') {
       this.btnUploadVideoText.textContent = fileName ? `Video: ${fileName.substring(0, 10)}...` : "Cambiar Video";
       this.btnUploadVideo.classList.remove("btn-secondary");
       this.btnUploadVideo.classList.add("btn-primary");
 
       this.btnResetRecord.disabled = false;
     } else {
-      this.btnToggleCamText.textContent = "Iniciar Cámara";
-      this.btnToggleCam.classList.remove("btn-danger");
-      this.btnToggleCam.classList.add("btn-primary");
-
       this.btnUploadVideoText.textContent = "Subir Video";
-      this.btnUploadVideo.classList.remove("btn-primary");
-      this.btnUploadVideo.classList.add("btn-secondary");
+      this.btnUploadVideo.classList.remove("btn-secondary");
+      this.btnUploadVideo.classList.add("btn-primary");
 
       this.btnResetRecord.disabled = true;
 
       // Resetear indicador de señal
       this.signalBars.forEach(bar => { bar.className = "signal-bar"; });
       this.signalLabel.textContent = "—";
-      this.signalLabel.className = "signal-text";
+    }
+  }
+
+  /**
+   * Actualiza el progreso comparativo y la recomendación de rutina de entrenamiento en un modal full-screen.
+   */
+  public updateRoutineAndProgress(currentJump: number, lastJump: number | null): void {
+    // Mostrar modal
+    this.resultsModal.style.display = "flex";
+    this.modalJumpVal.textContent = currentJump.toFixed(1);
+
+    // 1. Mostrar comparación si existe salto anterior
+    if (lastJump !== null && lastJump > 0) {
+      this.modalComparison.style.display = "flex";
+      this.modalPrevVal.textContent = `${lastJump.toFixed(1)} cm`;
+      
+      const diff = currentJump - lastJump;
+      const diffStr = diff >= 0 ? `+${diff.toFixed(1)} cm` : `${diff.toFixed(1)} cm`;
+      this.modalDiffVal.textContent = diffStr;
+
+      if (diff > 0) {
+        this.modalDiffBadge.className = "comp-diff-badge positive";
+        this.modalFeedback.textContent = "¡Excelente progreso! Tu entrenamiento y consistencia están dando frutos. ¡Sigue así! 🚀";
+      } else if (diff < 0) {
+        this.modalDiffBadge.className = "comp-diff-badge negative";
+        this.modalFeedback.textContent = "El salto ha sido ligeramente menor. Asegúrate de descansar bien (48-72h), nutrirte y entrenar la fuerza. 💤";
+      } else {
+        this.modalDiffBadge.className = "comp-diff-badge neutral";
+        this.modalFeedback.textContent = "Has mantenido tu mismo nivel. ¡Intenta aumentar la intensidad o la explosividad de tus ejercicios! 🔥";
+      }
+    } else {
+      this.modalComparison.style.display = "none";
+    }
+
+    // 2. Generar rutina basada en el nivel del salto actual
+    let title = "";
+    let levelClass = "";
+    let exercises: string[] = [];
+
+    if (currentJump < 30) {
+      title = "Principiante (Fuerza Base)";
+      levelClass = "routine-level-badge beginner";
+      exercises = [
+        "Sentadillas con salto explosivo - 3 series x 8 repeticiones",
+        "Saltos de tobillo rápidos (rebotes continuos) - 3 series x 15 segundos",
+        "Puentes de glúteo a una pierna - 3 series x 10 repeticiones por pierna",
+        "Saltos a cajón bajo - 3 series x 6 repeticiones (foco en caída suave)"
+      ];
+    } else if (currentJump >= 30 && currentJump <= 45) {
+      title = "Intermedio (Fuerza Explosiva)";
+      levelClass = "routine-level-badge intermediate";
+      exercises = [
+        "Saltos desde caída (dejarse caer desde 30cm y saltar inmediatamente hacia arriba) - 3 series x 5 repeticiones",
+        "Saltos horizontales explosivos continuos - 3 series x 6 repeticiones",
+        "Saltos agrupados con rodillas al pecho - 3 series x 8 repeticiones",
+        "Zancadas alternas explosivas con salto - 3 series x 10 repeticiones"
+      ];
+    } else if (currentJump > 45 && currentJump <= 65) {
+      title = "Avanzado (Reactividad Pliométrica)";
+      levelClass = "routine-level-badge advanced";
+      exercises = [
+        "Saltos desde caída alta (desde 45cm) con salto vertical máximo reactivo - 4 series x 4 repeticiones",
+        "Saltos verticales a una pierna (foco en altura máxima) - 3 series x 5 repeticiones por pierna",
+        "Saltos con contramovimiento resistidos (usando banda elástica o peso ligero) - 4 series x 5 repeticiones",
+        "Saltos de tobillo reactivos rápidos sobre mini vallas - 3 series x 20 segundos"
+      ];
+    } else {
+      title = "Élite (Pliometría Extrema y Potencia)";
+      levelClass = "routine-level-badge elite";
+      exercises = [
+        "Saltos desde caída extrema (desde 60cm) con rebote vertical instantáneo - 4 series x 3 repeticiones",
+        "Saltos verticales a una pierna asistidos (con banda para mayor aceleración) - 3 series x 6 repeticiones",
+        "Saltos con contramovimiento cargados (mancuerna o barra ligera) - 4 series x 4 repeticiones",
+        "Saltos de tobillo reactivos sobre obstáculos altos a un pie - 3 series x 15 segundos"
+      ];
+    }
+
+    this.modalRoutineDesc.textContent = `A continuación, te sugerimos esta rutina personalizada para tu nivel de potencia:`;
+    this.modalRoutineLevel.textContent = title;
+    this.modalRoutineLevel.className = levelClass;
+    
+    this.modalRoutineExercises.innerHTML = "";
+    exercises.forEach(ex => {
+      const li = document.createElement("li");
+      li.textContent = ex;
+      this.modalRoutineExercises.appendChild(li);
+    });
+  }
+}
+
+class ConfettiEffect {
+  private canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  private particles: Array<{
+    x: number;
+    y: number;
+    size: number;
+    color: string;
+    speedX: number;
+    speedY: number;
+    rotation: number;
+    rotationSpeed: number;
+  }> = [];
+  private active: boolean = false;
+
+  constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d")!;
+    this.resize();
+    window.addEventListener("resize", () => this.resize());
+  }
+
+  private resize() {
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+  }
+
+  public start() {
+    this.canvas.style.display = "block";
+    this.active = true;
+    this.particles = [];
+    const colors = ["#ff007f", "#00f2fe", "#4facfe", "#f9d423", "#ff4e50", "#f9d423", "#70e1f5"];
+    
+    for (let i = 0; i < 150; i++) {
+      const fromLeft = Math.random() > 0.5;
+      this.particles.push({
+        x: fromLeft ? 0 : this.canvas.width,
+        y: this.canvas.height * 0.8,
+        size: Math.random() * 8 + 6,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        speedX: (fromLeft ? 1 : -1) * (Math.random() * 15 + 10),
+        speedY: -(Math.random() * 20 + 15),
+        rotation: Math.random() * 360,
+        rotationSpeed: Math.random() * 10 - 5
+      });
+    }
+
+    this.animate();
+    setTimeout(() => {
+      this.active = false;
+      this.canvas.style.display = "none";
+    }, 4000);
+  }
+
+  private animate() {
+    if (!this.active) return;
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    let activeParticles = 0;
+
+    this.particles.forEach((p) => {
+      this.ctx.save();
+      this.ctx.translate(p.x, p.y);
+      this.ctx.rotate((p.rotation * Math.PI) / 180);
+      this.ctx.fillStyle = p.color;
+      this.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      this.ctx.restore();
+
+      p.x += p.speedX;
+      p.y += p.speedY;
+      p.speedY += 0.5;
+      p.speedX *= 0.98;
+      p.rotation += p.rotationSpeed;
+
+      if (p.y < this.canvas.height) {
+        activeParticles++;
+      }
+    });
+
+    if (activeParticles > 0 && this.active) {
+      requestAnimationFrame(() => this.animate());
     }
   }
 }

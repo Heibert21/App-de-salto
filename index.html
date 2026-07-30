@@ -29,6 +29,58 @@
     <!-- Contenedor flotante para notificaciones Toast -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Canvas para animación de confeti en nuevos récords -->
+    <canvas id="confetti-canvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 99999; display: none;"></canvas>
+
+    <!-- Modal de Resultados de Pantalla Completa -->
+    <div id="results-modal" class="results-modal" style="display: none;">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>📊 Resumen del Salto</h2>
+          <button id="btn-close-modal" class="btn-close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="jump-score-container">
+            <span class="score-label">Has saltado</span>
+            <div class="score-value">
+              <span id="modal-jump-val">0.0</span>
+              <span class="unit">cm</span>
+            </div>
+          </div>
+          
+          <!-- Comparativa de Progreso -->
+          <div class="modal-comparison" id="modal-comparison" style="display: none;">
+            <span class="comp-label">Salto anterior: <strong id="modal-prev-val">0.0 cm</strong></span>
+            <div class="comp-diff-badge" id="modal-diff-badge">
+              <span id="modal-diff-val">+0.0 cm</span>
+            </div>
+            <p class="modal-feedback" id="modal-feedback">¡Excelente progreso! Tu entreno funciona.</p>
+          </div>
+
+          <!-- Rutina Recomendada -->
+          <div class="modal-routine">
+            <div class="routine-header">
+              <h3>⚡ Tu Rutina de Salto Recomendada</h3>
+              <span id="modal-routine-level" class="routine-level-badge intermediate">Intermedio</span>
+            </div>
+            <p class="routine-desc" id="modal-routine-desc">Realiza esta rutina para mejorar tu potencia reactiva:</p>
+            <ul class="routine-list" id="modal-routine-exercises">
+              <!-- Se cargará dinámicamente -->
+            </ul>
+            <div class="routine-note">
+              💡 <strong>Instrucciones:</strong> Entrena esta rutina 2 o 3 veces por semana, descansa 48h entre sesiones, y vuelve a medirte para evaluar tu progreso.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-modal-dismiss" class="btn btn-primary btn-full-width">
+            🚀 ¡Listo, a saltar de nuevo!
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Encabezado Principal (compacto en móvil) -->
     <header class="app-header">
       <div class="logo-badge">
@@ -50,7 +102,7 @@
 
           <!-- Feed de Video y Canvas Superpuesto -->
           <div class="canvas-wrapper">
-            <video id="webcam" playsinline autoplay muted></video>
+            <video id="video-player" playsinline autoplay muted></video>
             <canvas id="output-canvas"></canvas>
 
             <!-- Overlay de métrica en vivo -->
@@ -66,39 +118,32 @@
               </div>
             </div>
 
-            <!-- Botón de cambio de cámara (solo visible cuando hay cámara activa) -->
-            <button id="btn-flip-cam" class="btn-flip" title="Cambiar cámara" style="display:none;">🔄</button>
           </div>
 
           <!-- Toolbar de botones principales (táctiles y grandes) -->
-          <div class="camera-toolbar">
-            <button id="btn-toggle-cam" class="btn btn-primary">
-              <span class="btn-icon">📹</span>
-              <span id="btn-toggle-cam-text">Iniciar Cámara</span>
-            </button>
+          <div class="camera-toolbar" style="display: flex; gap: 10px;">
             <input type="file" id="video-file-input" accept="video/mp4,video/webm,video/ogg,video/quicktime"
               style="display: none;" />
-            <button id="btn-upload-video" class="btn btn-secondary">
+            <button id="btn-upload-video" class="btn btn-primary" style="flex: 1;">
               <span class="btn-icon">📁</span>
               <span id="btn-upload-video-text">Subir Video</span>
             </button>
+            <button id="btn-reset-record" class="btn btn-danger" disabled style="flex: 1;">
+              <span class="btn-icon">🗑️</span>
+              <span>Borrar Récord</span>
+            </button>
           </div>
-            <!-- Segunda fila de botones -->
-            <div class="camera-toolbar toolbar-row2">
-              <button id="btn-recalibrate" class="btn btn-secondary">
-                <span class="btn-icon">🎯</span>
-                <span>Calibrar Suelo</span>
-              </button>
-              <button id="btn-reset-record" class="btn btn-danger" disabled>
-                <span class="btn-icon">🗑️</span>
-                <span>Borrar Récord</span>
-              </button>
-            </div>
-          </div>
-        </section>
+        </div>
+      </section>
 
         <!-- Dashboard de métricas (horizontal en tablet, vertical en móvil) -->
         <aside class="dashboard-section">
+          <!-- Botón Ver mi Rutina Recomendada -->
+          <button type="button" id="btn-show-routine" class="btn btn-secondary btn-full-width" style="margin-bottom: 12px; width: 100%;">
+            <span class="btn-icon">📋</span>
+            <span>Ver mi Rutina Recomendada</span>
+          </button>
+
           <!-- Récord -->
           <div class="card stat-card highlight-card">
             <div class="card-header">
@@ -112,96 +157,14 @@
             <p class="stat-footer" id="last-jump-time">Esperando primer salto...</p>
           </div>
 
+
+
           <!-- Configuración y Datos del Salto -->
           <div class="card config-card">
             <div class="card-header">
-              <h3>⚙️ Configuración y Datos</h3>
+              <h3>⚙️ Configuración</h3>
             </div>
-
-            <!-- Selector de Modo de Medición por Tarjetas -->
             <div class="control-group">
-              <!-- select oculto para mantener compatibilidad con UIView -->
-              <select id="measurement-mode-select" style="display:none;">
-                <option value="fusion" selected>Fusión IA</option>
-                <option value="flight_time">Tiempo de Vuelo</option>
-                <option value="displacement">Desplazamiento Visual</option>
-              </select>
-
-              <!-- Cabecera del selector con botón de colapso -->
-              <button type="button" class="mode-toggle-btn" id="mode-toggle" aria-expanded="true">
-                <span class="mode-toggle-label">
-                  <span class="mode-toggle-icon" id="mode-active-icon">✨</span>
-                  <span class="control-label" style="margin:0;">Modo: <strong id="mode-active-name">Fusión IA</strong></span>
-                </span>
-                <span class="chevron-icon" aria-hidden="true">▾</span>
-              </button>
-
-              <div class="mode-cards" id="mode-cards">
-
-                <!-- Modo: Fusión IA -->
-                <button type="button" class="mode-card active" data-mode="fusion" data-icon="✨" data-label="Fusión IA" id="mode-card-fusion" aria-pressed="true">
-                  <div class="mode-card-header">
-                    <span class="mode-icon">✨</span>
-                    <div class="mode-title-group">
-                      <span class="mode-name">Fusión IA</span>
-                      <span class="mode-badge mode-badge-recommended">Recomendado</span>
-                    </div>
-                  </div>
-                  <p class="mode-desc">
-                    Combina <strong>tiempo de vuelo</strong> y <strong>desplazamiento real</strong> de cadera mediante 
-                    pesos Gaussianos. A mayor coherencia entre ambas fuentes, más fiable es el resultado.
-                  </p>
-                  <ul class="mode-pros-cons">
-                    <li class="pro">✔ Corrige encogimiento de piernas (Tuck Jump)</li>
-                    <li class="pro">✔ Funciona bien desde el suelo o en ángulo</li>
-                    <li class="con">✗ Requiere estatura del atleta aproximada</li>
-                  </ul>
-                </button>
-
-                <!-- Modo: Tiempo de Vuelo -->
-                <button type="button" class="mode-card" data-mode="flight_time" data-icon="⏱️" data-label="Tiempo de Vuelo" id="mode-card-flight_time" aria-pressed="false">
-                  <div class="mode-card-header">
-                    <span class="mode-icon">⏱️</span>
-                    <div class="mode-title-group">
-                      <span class="mode-name">Tiempo de Vuelo</span>
-                      <span class="mode-badge mode-badge-mobile">Ideal para móvil</span>
-                    </div>
-                  </div>
-                  <p class="mode-desc">
-                    Usa la fórmula cinemática <strong>h = g·t²/8</strong> basada exclusivamente en el tiempo entre 
-                    despegue y aterrizaje. No depende de la estatura ni del ángulo de la cámara.
-                  </p>
-                  <ul class="mode-pros-cons">
-                    <li class="pro">✔ No necesita saber la estatura</li>
-                    <li class="pro">✔ Inmune al ángulo de la cámara</li>
-                    <li class="con">✗ Se infla si aterrizas con piernas dobladas</li>
-                  </ul>
-                </button>
-
-                <!-- Modo: Desplazamiento Visual -->
-                <button type="button" class="mode-card" data-mode="displacement" data-icon="📏" data-label="Desplazamiento" id="mode-card-displacement" aria-pressed="false">
-                  <div class="mode-card-header">
-                    <span class="mode-icon">📏</span>
-                    <div class="mode-title-group">
-                      <span class="mode-name">Desplazamiento Visual</span>
-                      <span class="mode-badge mode-badge-precise">Alta precisión visual</span>
-                    </div>
-                  </div>
-                  <p class="mode-desc">
-                    Mide directamente el <strong>desplazamiento en píxeles de la cadera</strong> escalado por tu 
-                    estatura real. Muy preciso cuando la cámara está de frente y el encuadre es completo.
-                  </p>
-                  <ul class="mode-pros-cons">
-                    <li class="pro">✔ No se ve afectado por encogimiento al aterrizar</li>
-                    <li class="pro">✔ Preciso con cámara frontal a nivel del suelo</li>
-                    <li class="con">✗ Sensible al ángulo y distorsión de la cámara</li>
-                  </ul>
-                </button>
-
-              </div>
-            </div>
-
-            <div class="control-group" style="margin-top: 8px;">
               <div class="height-header-row">
                 <label class="control-label" for="user-height-input">Estatura del Atleta</label>
                 <span id="auto-height-badge" class="auto-height-badge" style="display: none;">✨ Estimado por IA</span>
@@ -258,36 +221,36 @@
               <div class="guide-step-header">
                 <span class="step-number">1</span>
                 <span class="step-icon">📱</span>
-                <span class="step-title">Posicionamiento</span>
+                <span class="step-title">Grabar Video</span>
               </div>
-              <p class="step-desc">Apoyá tu celular a <strong>2 o 3 metros</strong>. Asegurate de que se vea tu <strong>cuerpo completo</strong> (de pies a cabeza).</p>
+              <p class="step-desc">Grabá un video de tu salto. Asegurate de que se vea tu <strong>cuerpo completo</strong> (de pies a cabeza).</p>
             </div>
 
             <div class="guide-step-card">
               <div class="guide-step-header">
                 <span class="step-number">2</span>
-                <span class="step-icon">📹</span>
-                <span class="step-title">Activar Cámara</span>
+                <span class="step-icon">📁</span>
+                <span class="step-title">Subir Video</span>
               </div>
-              <p class="step-desc">Tocá <strong>Iniciar Cámara</strong>. Verás una silueta fantasma guiándote en la pantalla.</p>
+              <p class="step-desc">Tocá <strong>Subir Video</strong> y seleccioná la grabación de tu salto desde tu dispositivo.</p>
             </div>
 
             <div class="guide-step-card">
               <div class="guide-step-header">
                 <span class="step-number">3</span>
                 <span class="step-icon">🟢</span>
-                <span class="step-title">Auto-Calibración</span>
+                <span class="step-title">Procesamiento Automático</span>
               </div>
-              <p class="step-desc">Quedate <strong>parado erguido 2 segundos</strong>. El suelo se detecta solo y dirá <strong>"Señal Buena"</strong>.</p>
+              <p class="step-desc">El video se analizará solo. La app detectará el momento del despegue y aterrizaje.</p>
             </div>
 
             <div class="guide-step-card">
               <div class="guide-step-header">
                 <span class="step-number">4</span>
                 <span class="step-icon">🚀</span>
-                <span class="step-title">¡A Saltá!</span>
+                <span class="step-title">Resultados</span>
               </div>
-              <p class="step-desc">Flexioná y saltá con fuerza. La app medirá tu tiempo en el aire y calculará tus <strong>cm alcanzados</strong>.</p>
+              <p class="step-desc">Una vez procesado, la app calculará tus <strong>cm alcanzados</strong> de forma precisa.</p>
             </div>
           </div>
           <div class="guide-tip">
@@ -304,37 +267,7 @@
   </div>
 
   <script>
-    // Interacción nativa de las tarjetas de modo (sin depender de Vite/TS)
     document.addEventListener('DOMContentLoaded', function () {
-      var modeCards = document.querySelectorAll('#mode-cards .mode-card');
-      var modeSelect = document.getElementById('measurement-mode-select');
-
-      modeCards.forEach(function (card) {
-        card.addEventListener('click', function () {
-          modeCards.forEach(function (c) {
-            c.classList.remove('active');
-            c.setAttribute('aria-pressed', 'false');
-          });
-          card.classList.add('active');
-          card.setAttribute('aria-pressed', 'true');
-          if (modeSelect) {
-            modeSelect.value = card.getAttribute('data-mode') || 'fusion';
-            modeSelect.dispatchEvent(new Event('change'));
-          }
-        });
-      });
-
-      // Sincronizar tarjeta activa si el select cambia programáticamente
-      if (modeSelect) {
-        modeSelect.addEventListener('change', function () {
-          modeCards.forEach(function (c) {
-            var isActive = c.getAttribute('data-mode') === modeSelect.value;
-            c.classList.toggle('active', isActive);
-            c.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-          });
-        });
-      }
-
       // Toggle collapsible de Estatura y Datos
       var extraToggle = document.getElementById('extra-toggle');
       var extraBody = document.getElementById('extra-body');
@@ -350,37 +283,6 @@
             extraToggle.setAttribute('aria-expanded', 'true');
             extraToggle.classList.add('is-open');
           }
-        });
-      }
-
-      // Toggle de las tarjetas de modo (mode-toggle, si existe)
-      var modeToggleBtn = document.getElementById('mode-toggle');
-      var modeCardsEl = document.getElementById('mode-cards');
-      var modeActiveIcon = document.getElementById('mode-active-icon');
-      var modeActiveName = document.getElementById('mode-active-name');
-      if (modeToggleBtn && modeCardsEl) {
-        modeToggleBtn.addEventListener('click', function () {
-          var isOpen = modeToggleBtn.getAttribute('aria-expanded') === 'true';
-          if (isOpen) {
-            modeCardsEl.style.display = 'none';
-            modeToggleBtn.setAttribute('aria-expanded', 'false');
-            modeToggleBtn.classList.remove('is-open');
-          } else {
-            modeCardsEl.style.display = 'flex';
-            modeToggleBtn.setAttribute('aria-expanded', 'true');
-            modeToggleBtn.classList.add('is-open');
-          }
-        });
-        // Al seleccionar un modo, actualizar el label del botón toggle y cerrar
-        modeCards.forEach(function (card) {
-          card.addEventListener('click', function () {
-            if (modeActiveIcon) modeActiveIcon.textContent = card.getAttribute('data-icon') || '';
-            if (modeActiveName) modeActiveName.textContent = card.getAttribute('data-label') || '';
-            // Cerrar las tarjetas tras seleccionar
-            modeCardsEl.style.display = 'none';
-            modeToggleBtn.setAttribute('aria-expanded', 'false');
-            modeToggleBtn.classList.remove('is-open');
-          });
         });
       }
     });

@@ -29,7 +29,6 @@
 import { NormalizedLandmark } from "./PoseModel";
 
 export type JumpState = 'IDLE' | 'PREPARING' | 'IN_AIR' | 'LANDED';
-export type MeasurementMode = 'fusion' | 'flight_time' | 'displacement';
 
 // Constante de gravedad terrestre estándar en cm/s² (ISO / IUPAC 9.80665 m/s²)
 const GRAVITY_CM_S2 = 980.665;
@@ -50,7 +49,6 @@ export class JumpModel {
 
   // Parámetros configurables del usuario
   private userHeightCm: number = 172; // Estatura por defecto en cm
-  private measurementMode: MeasurementMode = 'fusion';
   private isVideoMode: boolean = false;
 
   // ── Suavizado de señal EMA (Exponential Moving Average) ──
@@ -61,7 +59,7 @@ export class JumpModel {
   // ── Detección de reposo para auto-bloqueo de suelo ──
   private idleStartTimeMs: number = 0;
   private recentHipPositions: number[] = [];
-  private readonly CALIBRATION_STABILITY_TIME_MS = 1500; // 1.5s erguido para cámara en vivo
+  private readonly CALIBRATION_STABILITY_TIME_MS = 1500; // 1.5s erguido para video en vivo
   private readonly VIDEO_STABILITY_TIME_MS = 300;       // 300ms para videos subidos cortos
 
   // ── Historial de cuadros para interpolación sub-frame ──
@@ -84,6 +82,7 @@ export class JumpModel {
   private lastFlightHeightCm: number = 0;
   private lastDisplacementHeightCm: number = 0;
 
+  private lastJumpCm: number | null = null;
   private landedResetTimer: number | null = null;
 
   // Callbacks al exterior
@@ -102,7 +101,7 @@ export class JumpModel {
 
   private static readonly STORAGE_KEY = 'youcanfly_record_cm';
   private static readonly HEIGHT_STORAGE_KEY = 'youcanfly_user_height_cm';
-  private static readonly MODE_STORAGE_KEY = 'youcanfly_measurement_mode';
+  private static readonly LAST_JUMP_KEY = 'youcanfly_last_jump_cm';
 
   constructor() {
     // Recuperar récord guardado
@@ -117,10 +116,10 @@ export class JumpModel {
       this.userHeightCm = savedHeight;
     }
 
-    // Recuperar modo de medición
-    const savedMode = localStorage.getItem(JumpModel.MODE_STORAGE_KEY) as MeasurementMode;
-    if (savedMode && ['fusion', 'flight_time', 'displacement'].includes(savedMode)) {
-      this.measurementMode = savedMode;
+    // Recuperar último salto guardado
+    const savedLast = parseFloat(localStorage.getItem(JumpModel.LAST_JUMP_KEY) ?? '0');
+    if (!isNaN(savedLast) && savedLast > 0) {
+      this.lastJumpCm = savedLast;
     }
   }
 
@@ -128,6 +127,10 @@ export class JumpModel {
 
   public getBaselineHipY(): number | null {
     return this.baselineHipY;
+  }
+
+  public getLastJumpCm(): number | null {
+    return this.lastJumpCm;
   }
 
   public getBaselineAnkleY(): number | null {
@@ -177,14 +180,7 @@ export class JumpModel {
     }
   }
 
-  public getMeasurementMode(): MeasurementMode {
-    return this.measurementMode;
-  }
 
-  public setMeasurementMode(mode: MeasurementMode): void {
-    this.measurementMode = mode;
-    localStorage.setItem(JumpModel.MODE_STORAGE_KEY, mode);
-  }
 
   public setIsVideoMode(isVideo: boolean): void {
     this.isVideoMode = isVideo;
@@ -343,7 +339,7 @@ export class JumpModel {
   }
 
   /**
-   * Procesa cada cuadro capturado de la cámara / video.
+   * Procesa cada cuadro capturado del video.
    */
   public processFrame(
     landmarks: NormalizedLandmark[],
@@ -590,43 +586,40 @@ export class JumpModel {
     // 4. Modelo de Fusión Triangulada de 3 Fuentes (Vuelo, Apogeo y Velocidad Lanzamiento)
     let finalHeightCm = 0;
 
-    switch (this.measurementMode) {
-      case 'flight_time':
-        finalHeightCm = this.lastFlightHeightCm;
-        break;
-      case 'displacement':
-        finalHeightCm = this.lastDisplacementHeightCm;
-        break;
-      case 'fusion':
-      default: {
-        const flightCm = this.lastFlightHeightCm;
-        const dispCm = this.lastDisplacementHeightCm;
-        const kineticCm = this.lastKineticHeightCm;
+    const flightCm = this.lastFlightHeightCm;
+    const dispCm = this.lastDisplacementHeightCm;
+    const kineticCm = this.lastKineticHeightCm;
 
-        if (dispCm > 3 && flightCm > 3) {
-          const maxVal = Math.max(flightCm, dispCm);
-          const relativeDiff = Math.abs(flightCm - dispCm) / maxVal;
+    if (dispCm > 3 && flightCm > 3) {
+      const maxVal = Math.max(flightCm, dispCm);
+      const relativeDiff = Math.abs(flightCm - dispCm) / maxVal;
 
-          // Peso Gaussiano de Coherencia Parabólica
-          const wFlight = Math.exp(-3.5 * Math.pow(relativeDiff, 2));
-          const wDisp = 1.0 - wFlight;
-          let fused = wFlight * flightCm + wDisp * dispCm;
+      // Peso Gaussiano de Coherencia Parabólica
+      const wFlight = Math.exp(-3.5 * Math.pow(relativeDiff, 2));
+      const wDisp = 1.0 - wFlight;
+      let fused = wFlight * flightCm + wDisp * dispCm;
 
-          // Triangular con energía cinemática v₀ si está disponible y es coherente
-          if (kineticCm > 3 && kineticCm < maxVal * 1.35) {
-            fused = 0.75 * fused + 0.25 * kineticCm;
-          }
-
-          finalHeightCm = fused;
-        } else {
-          finalHeightCm = Math.max(flightCm, dispCm);
-        }
-        break;
+      // Triangular con energía cinemática v₀ si está disponible y es coherente
+      if (kineticCm > 3 && kineticCm < maxVal * 1.35) {
+        fused = 0.75 * fused + 0.25 * kineticCm;
       }
+
+      finalHeightCm = fused;
+    } else {
+      finalHeightCm = Math.max(flightCm, dispCm);
     }
+
+    // Guardar el anterior salto antes de actualizar
+    const prevJump = this.peakJumpCm;
 
     this.peakJumpCm = Number(finalHeightCm.toFixed(1));
     this.currentJumpCm = this.peakJumpCm;
+
+    // Si ya había un salto anterior registrado en esta sesión (o recuperado), lo guardamos como lastJumpCm
+    if (prevJump > 0 && prevJump !== this.peakJumpCm) {
+      this.lastJumpCm = prevJump;
+      localStorage.setItem(JumpModel.LAST_JUMP_KEY, String(prevJump));
+    }
 
     // Comprobar nuevo récord
     if (this.peakJumpCm > this.maxJumpCm) {
@@ -663,9 +656,6 @@ export class JumpModel {
     if (this.baselineHipY !== null && this.standingBodyHeightPx > 0) {
       const deltaHipPx = Math.max(0, this.baselineHipY - currentHipY);
       const dispCm = deltaHipPx * (this.userHeightCm / this.standingBodyHeightPx);
-
-      if (this.measurementMode === 'displacement') return dispCm;
-      if (this.measurementMode === 'flight_time') return flightCm;
 
       // Fusión Gaussiana coherente en vivo (idéntica al modelo final de aterrizaje)
       if (dispCm > 2 && flightCm > 2) {

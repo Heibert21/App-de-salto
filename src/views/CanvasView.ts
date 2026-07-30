@@ -186,10 +186,10 @@ export class CanvasView {
     this.ctx.fillStyle = "#00F2FE";
     this.ctx.font = `bold ${Math.max(14, height * 0.022)}px 'Outfit', sans-serif`;
     this.ctx.textAlign = "center";
-    this.ctx.fillText("Posiciónate frente a la cámara", cx, cy + height * 0.33);
+    this.ctx.fillText("El video debe mostrar el cuerpo completo", cx, cy + height * 0.33);
     this.ctx.font = `${Math.max(11, height * 0.017)}px 'Outfit', sans-serif`;
     this.ctx.fillStyle = "rgba(255,255,255,0.7)";
-    this.ctx.fillText("El cuerpo completo debe verse en pantalla", cx, cy + height * 0.33 + height * 0.03);
+    this.ctx.fillText("De pies a cabeza para mejor precisión", cx, cy + height * 0.33 + height * 0.03);
     this.ctx.restore();
   }
 

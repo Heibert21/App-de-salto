@@ -2,11 +2,11 @@
  * ============================================================================
  * CONTROLADOR: JumpController.ts
  * Responsabilidad: Orquestar el flujo de la aplicación. Conecta el feed de
- * cámara, la visión por computadora (PoseModel), la matemática/estado (JumpModel),
+ * video, la visión por computadora (PoseModel), la matemática/estado (JumpModel),
  * el renderizado en canvas (CanvasView) y el DOM (UIView).
  *
  * Mejoras v2:
- *  - Constraints de cámara mejoradas: mayor resolución en móvil portrait + frameRate ideal 30.
+ *  - Constraints de video mejoradas: mayor resolución en móvil portrait + frameRate ideal 30.
  *  - Modelo `full` activado automáticamente en desktop para mayor precisión.
  *  - Detección y manejo de cambios de orientación (portrait/landscape).
  *  - Pasa avgPoseVisibility a CanvasView y UIView para indicadores de calidad.
@@ -25,14 +25,11 @@ export class JumpController {
   private canvasView: CanvasView;
   private uiView: UIView;
 
-  private activeSource: 'camera' | 'video' | 'none' = 'none';
-  private mediaStream: MediaStream | null = null;
+  private activeSource: 'video' | 'none' = 'none';
   private currentObjectUrl: string | null = null;
   private animationFrameId: number | null = null;
   private lastLandmarks: any = null;
   private videoStopTimeout: number | null = null;
-  // Cámara activa: 'user' (frontal) o 'environment' (trasera)
-  private facingMode: 'user' | 'environment' = 'environment';
 
   // Optimizaciones de rendimiento móvil
   private lastInferenceMs: number = 0;
@@ -60,6 +57,10 @@ export class JumpController {
 
     // Escuchar cuando se completa un salto (en modo video: detener tras 2s)
     this.jumpModel.onJumpCompleted = (peakCm) => {
+      // Actualizar rutina y progreso
+      const lastJump = this.jumpModel.getLastJumpCm();
+      this.uiView.updateRoutineAndProgress(peakCm, lastJump);
+
       if (this.activeSource === 'video') {
         console.log(`¡Salto medido exitosamente (${peakCm.toFixed(1)} cm)! Deteniendo y eliminando el video...`);
         if (this.videoStopTimeout) window.clearTimeout(this.videoStopTimeout);
@@ -100,28 +101,25 @@ export class JumpController {
   private async init(): Promise<void> {
     // Sincronizar valores iniciales de la UI
     this.uiView.setInitialValues(
-      this.jumpModel.getUserHeightCm(),
-      this.jumpModel.getMeasurementMode()
+      this.jumpModel.getUserHeightCm()
     );
 
     // Vincular eventos de usuario desde la Vista UI
     this.uiView.bindEvents({
-      onToggleCamera: () => this.toggleCamera(),
-      onFlipCamera: () => this.flipCamera(),
       onSelectVideoFile: (file) => this.loadVideoFile(file),
       onResetRecord: () => this.resetRecord(),
-      onRecalibrateBaseline: () => {
-        this.jumpModel.recalibrateBaseline();
-        this.uiView.showToast("🎯 Suelo restablecido. Quedate erguido 1.5s.", 'info');
-      },
       onChangeUserHeight: (heightCm) => {
         this.jumpModel.setUserHeightCm(heightCm);
         this.uiView.showToast(`📏 Estatura actualizada: ${heightCm} cm`, 'success');
       },
-      onChangeMeasurementMode: (mode) => {
-        this.jumpModel.setMeasurementMode(mode);
-        const modeLabel = mode === 'fusion' ? 'Fusión IA' : mode === 'flight_time' ? 'Tiempo de Vuelo' : 'Desplazamiento';
-        this.uiView.showToast(`📊 Modo activo: ${modeLabel}`, 'info');
+      onShowRoutine: () => {
+        const lastRecord = this.jumpModel.getMaxJumpCm();
+        const lastJump = this.jumpModel.getLastJumpCm();
+        if (lastRecord > 0) {
+          this.uiView.updateRoutineAndProgress(lastRecord, lastJump);
+        } else {
+          this.uiView.showToast("📊 Registra un salto primero para generar tu rutina", 'info');
+        }
       }
     });
 
@@ -152,27 +150,6 @@ export class JumpController {
     });
   }
 
-  /**
-   * Alterna la cámara web.
-   */
-  private async toggleCamera(): Promise<void> {
-    if (this.activeSource === 'camera') {
-      this.stopActiveSource();
-    } else {
-      await this.startCamera();
-    }
-  }
-
-  /**
-   * Cambia entre cámara frontal (user) y trasera (environment).
-   */
-  private async flipCamera(): Promise<void> {
-    if (this.activeSource !== 'camera') return;
-    this.facingMode = this.facingMode === 'environment' ? 'user' : 'environment';
-    // Reiniciar la cámara con el nuevo facingMode
-    await this.startCamera();
-  }
-
   private async loadVideoFile(file: File): Promise<void> {
     this.stopActiveSource();
 
@@ -192,8 +169,6 @@ export class JumpController {
       }
     };
 
-    this.uiView.setMirrorMode(false); // No usar espejo para videos subidos
-
     await new Promise<void>((resolve) => {
       videoEl.onloadedmetadata = () => {
         videoEl.play();
@@ -212,56 +187,7 @@ export class JumpController {
   }
 
   /**
-   * Activa el stream de video de la cámara web.
-   * Mejoras v2: mejor resolución en móvil portrait y frameRate ideal 30.
-   */
-  private async startCamera(): Promise<void> {
-    this.stopActiveSource();
-    this.jumpModel.setIsVideoMode(false);
-
-    try {
-      const mobile = this.isMobile();
-      // Resolución ultra ligera en móvil (640x480 / 480x640) para garantizar 60fps sin calentamiento
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width:     { ideal: mobile ? 480 : 1280, max: mobile ? 720 : 1920 },
-          height:    { ideal: mobile ? 640 : 720, max: mobile ? 1280 : 1080 },
-          frameRate: { ideal: 30, max: 60 },
-          facingMode: this.facingMode
-        },
-        audio: false
-      });
-
-      const videoEl = this.uiView.getVideoElement();
-      videoEl.src = "";
-      videoEl.srcObject = this.mediaStream;
-      videoEl.muted = true;
-
-      // Solo aplicar espejo en cámara frontal (user)
-      this.uiView.setMirrorMode(this.facingMode === 'user');
-
-      await new Promise<void>((resolve) => {
-        videoEl.onloadedmetadata = () => {
-          videoEl.play();
-          resolve();
-        };
-      });
-
-      this.activeSource = 'camera';
-      this.uiView.setSourceState('camera');
-      this.uiView.setFlipButtonVisible(true); // Mostrar botón flip
-
-      if (this.animationFrameId === null) {
-        this.processLoop();
-      }
-    } catch (err) {
-      console.error("Error al acceder a la cámara web:", err);
-      alert("No se pudo acceder a la cámara. Por favor otorga los permisos necesarios.");
-    }
-  }
-
-  /**
-   * Detiene la fuente activa (cámara o video).
+   * Detiene la fuente activa (video).
    */
   private stopActiveSource(): void {
     if (this.videoStopTimeout) {
@@ -272,11 +198,6 @@ export class JumpController {
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
-    }
-
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((track) => track.stop());
-      this.mediaStream = null;
     }
 
     if (this.currentObjectUrl) {
@@ -291,7 +212,6 @@ export class JumpController {
 
     this.activeSource = 'none';
     this.uiView.setSourceState('none');
-    this.uiView.setFlipButtonVisible(false); // Ocultar botón flip
     this.canvasView.clear();
   }
 
