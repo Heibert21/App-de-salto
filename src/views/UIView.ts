@@ -66,6 +66,10 @@ export class UIView {
   private signalLabel: HTMLElement;
   private toastContainer: HTMLElement;
   private confettiEffect: ConfettiEffect;
+  private emptyState: HTMLElement | null;
+  private athleteLevelBadge: HTMLElement | null;
+  private levelProgressBar: HTMLElement | null;
+  private levelProgressLabel: HTMLElement | null;
 
   // Cache de últimos valores para evitar escrituras redundantes al DOM (60fps)
   private lastLiveHeight: string = '';
@@ -140,6 +144,12 @@ export class UIView {
 
     const confettiCanvas = this.getElement("confetti-canvas") as HTMLCanvasElement;
     this.confettiEffect = new ConfettiEffect(confettiCanvas);
+
+    // Elementos opcionales (nuevas mejoras de diseño)
+    this.emptyState = document.getElementById('empty-state');
+    this.athleteLevelBadge = document.getElementById('athlete-level-badge');
+    this.levelProgressBar = document.getElementById('level-progress-bar');
+    this.levelProgressLabel = document.getElementById('level-progress-label');
   }
 
   private getElement(id: string): HTMLElement {
@@ -455,6 +465,16 @@ export class UIView {
     this.lastAvgVisibility = 0;
     this.lastSignalLevel = -1;
 
+    // Mostrar u ocultar el estado vacío del canvas
+    const canvasWrapper = this.canvasElement?.closest('.canvas-wrapper');
+    if (canvasWrapper) {
+      if (mode === 'video') {
+        canvasWrapper.classList.add('has-video');
+      } else {
+        canvasWrapper.classList.remove('has-video');
+      }
+    }
+
     if (mode === 'video') {
       this.btnUploadVideoText.textContent = fileName ? `Video: ${fileName.substring(0, 10)}...` : "Cambiar Video";
       this.btnUploadVideo.classList.remove("btn-secondary");
@@ -480,7 +500,23 @@ export class UIView {
   public updateRoutineAndProgress(currentJump: number, lastJump: number | null): void {
     // Mostrar modal
     this.resultsModal.style.display = "flex";
-    this.modalJumpVal.textContent = currentJump.toFixed(1);
+
+    // Contador animado: sube de 0 al valor real en ~800ms
+    const targetVal = currentJump;
+    const duration = 900;
+    const startTime = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Easing out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      this.modalJumpVal.textContent = (targetVal * eased).toFixed(1);
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+
+    // Actualizar badge de nivel dinámico en la tarjeta de Récord
+    this.updateLevelBadgeAndProgress(currentJump);
 
     // 1. Mostrar comparación si existe salto anterior
     if (lastJump !== null && lastJump > 0) {
@@ -558,6 +594,43 @@ export class UIView {
       li.textContent = ex;
       this.modalRoutineExercises.appendChild(li);
     });
+  }
+
+  /**
+   * Actualiza el badge de nivel del atleta y la barra de progreso al siguiente nivel.
+   */
+  private updateLevelBadgeAndProgress(jumpCm: number): void {
+    if (!this.athleteLevelBadge || !this.levelProgressBar || !this.levelProgressLabel) return;
+
+    const levels = [
+      { label: 'Principiante', cls: 'beginner',     min: 0,  max: 30  },
+      { label: 'Intermedio',   cls: 'intermediate', min: 30, max: 45  },
+      { label: 'Avanzado',     cls: 'advanced',     min: 45, max: 65  },
+      { label: 'Élite',        cls: 'elite',        min: 65, max: 100 },
+    ];
+
+    const currentLevel = levels.find((l, i) =>
+      jumpCm < l.max || i === levels.length - 1
+    )!;
+
+    // Badge
+    this.athleteLevelBadge.textContent = currentLevel.label;
+    this.athleteLevelBadge.className = `athlete-level-badge ${currentLevel.cls}`;
+
+    // Progress bar
+    const progress = Math.min(
+      ((jumpCm - currentLevel.min) / (currentLevel.max - currentLevel.min)) * 100,
+      100
+    );
+    this.levelProgressBar.style.width = `${progress.toFixed(0)}%`;
+
+    if (currentLevel.cls === 'elite') {
+      this.levelProgressLabel.textContent = `¡Nivel élite alcanzado! 👑`;
+    } else {
+      const nextLevel = levels[levels.indexOf(currentLevel) + 1];
+      const remaining = (currentLevel.max - jumpCm).toFixed(1);
+      this.levelProgressLabel.textContent = `${remaining} cm para ${nextLevel.label}`;
+    }
   }
 }
 

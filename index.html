@@ -94,9 +94,13 @@
       <!-- Sección del Video / Canvas Overlay -->
       <section class="video-section">
         <div class="video-card">
-          <!-- Pantalla de carga -->
+          <!-- Pantalla de carga skeleton -->
           <div id="loading-overlay" class="loading-overlay">
-            <div class="spinner"></div>
+            <div class="skeleton-loader">
+              <div class="skeleton-icon">🔭</div>
+              <div class="skeleton-bar" style="width: 70%; height: 14px;"></div>
+              <div class="skeleton-bar" style="width: 50%; height: 10px;"></div>
+            </div>
             <p id="loading-text">Cargando MediaPipe Pose...</p>
           </div>
 
@@ -104,6 +108,46 @@
           <div class="canvas-wrapper">
             <video id="video-player" playsinline autoplay muted></video>
             <canvas id="output-canvas"></canvas>
+
+            <!-- Estado vacío: se muestra cuando no hay video cargado -->
+            <div id="empty-state" class="empty-state">
+              <div class="empty-silhouette">
+                <!-- SVG atleta saltando - diseño neon propio -->
+                <svg class="jump-svg" viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <filter id="neon-glow" x="-40%" y="-40%" width="180%" height="180%">
+                      <feGaussianBlur stdDeviation="3" result="blur1"/>
+                      <feGaussianBlur stdDeviation="6" result="blur2"/>
+                      <feMerge>
+                        <feMergeNode in="blur2"/>
+                        <feMergeNode in="blur1"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  </defs>
+                  <!-- Cabeza -->
+                  <circle cx="50" cy="14" r="9" fill="none" stroke="#00F2FE" stroke-width="3" filter="url(#neon-glow)"/>
+                  <!-- Cuerpo -->
+                  <line x1="50" y1="23" x2="50" y2="60" stroke="#00F2FE" stroke-width="3" stroke-linecap="round" filter="url(#neon-glow)"/>
+                  <!-- Brazo izquierdo - extendido hacia arriba (impulso) -->
+                  <line x1="50" y1="34" x2="24" y2="22" stroke="#4FACFE" stroke-width="2.5" stroke-linecap="round" filter="url(#neon-glow)"/>
+                  <!-- Brazo derecho - extendido hacia arriba -->
+                  <line x1="50" y1="34" x2="76" y2="22" stroke="#4FACFE" stroke-width="2.5" stroke-linecap="round" filter="url(#neon-glow)"/>
+                  <!-- Pierna izquierda - doblada en el aire -->
+                  <line x1="50" y1="60" x2="34" y2="82" stroke="#00F2FE" stroke-width="3" stroke-linecap="round" filter="url(#neon-glow)"/>
+                  <line x1="34" y1="82" x2="22" y2="70" stroke="#4FACFE" stroke-width="2.5" stroke-linecap="round" filter="url(#neon-glow)"/>
+                  <!-- Pierna derecha - extendida -->
+                  <line x1="50" y1="60" x2="68" y2="85" stroke="#00F2FE" stroke-width="3" stroke-linecap="round" filter="url(#neon-glow)"/>
+                  <line x1="68" y1="85" x2="82" y2="76" stroke="#4FACFE" stroke-width="2.5" stroke-linecap="round" filter="url(#neon-glow)"/>
+                  <!-- Destello de energía bajo los pies -->
+                  <ellipse cx="50" cy="115" rx="28" ry="5" fill="#00F2FE" opacity="0.18" filter="url(#neon-glow)"/>
+                </svg>
+                <div class="silhouette-shadow"></div>
+              </div>
+              <p class="empty-title">Sube un video para comenzar</p>
+              <p class="empty-hint">Graba tu salto con el cuerpo completo visible</p>
+              <div class="empty-arrow">↓</div>
+            </div>
 
             <!-- Overlay de métrica en vivo -->
             <div class="live-metric-overlay">
@@ -148,11 +192,21 @@
           <div class="card stat-card highlight-card">
             <div class="card-header">
               <h3>🏆 Récord</h3>
-              <span class="badge-gold">MÁXIMO</span>
+              <div class="record-header-right">
+                <span id="athlete-level-badge" class="athlete-level-badge beginner">Principiante</span>
+                <span class="badge-gold">MÁXIMO</span>
+              </div>
             </div>
             <div class="big-metric">
               <span id="max-jump-val">0.0</span>
               <span class="unit">cm</span>
+            </div>
+            <!-- Barra de progreso al siguiente nivel -->
+            <div class="level-progress-container">
+              <div class="level-progress-track">
+                <div id="level-progress-bar" class="level-progress-bar" style="width: 0%"></div>
+              </div>
+              <p class="level-progress-label" id="level-progress-label">0 cm / 30 cm para el siguiente nivel</p>
             </div>
             <p class="stat-footer" id="last-jump-time">Esperando primer salto...</p>
           </div>
@@ -218,39 +272,55 @@
           </div>
           <div class="guide-grid">
             <div class="guide-step-card">
-              <div class="guide-step-header">
+              <div class="guide-step-left">
                 <span class="step-number">1</span>
                 <span class="step-icon">📱</span>
-                <span class="step-title">Grabar Video</span>
               </div>
-              <p class="step-desc">Grabá un video de tu salto. Asegurate de que se vea tu <strong>cuerpo completo</strong> (de pies a cabeza).</p>
+              <div class="guide-step-body">
+                <div class="guide-step-header">
+                  <span class="step-title">Grabar Video</span>
+                </div>
+                <p class="step-desc">Grabá un video de tu salto. Asegurate de que se vea tu <strong>cuerpo completo</strong> (de pies a cabeza).</p>
+              </div>
             </div>
 
             <div class="guide-step-card">
-              <div class="guide-step-header">
+              <div class="guide-step-left">
                 <span class="step-number">2</span>
                 <span class="step-icon">📁</span>
-                <span class="step-title">Subir Video</span>
               </div>
-              <p class="step-desc">Tocá <strong>Subir Video</strong> y seleccioná la grabación de tu salto desde tu dispositivo.</p>
+              <div class="guide-step-body">
+                <div class="guide-step-header">
+                  <span class="step-title">Subir Video</span>
+                </div>
+                <p class="step-desc">Tocá <strong>Subir Video</strong> y seleccioná la grabación de tu salto desde tu dispositivo.</p>
+              </div>
             </div>
 
             <div class="guide-step-card">
-              <div class="guide-step-header">
+              <div class="guide-step-left">
                 <span class="step-number">3</span>
                 <span class="step-icon">🟢</span>
-                <span class="step-title">Procesamiento Automático</span>
               </div>
-              <p class="step-desc">El video se analizará solo. La app detectará el momento del despegue y aterrizaje.</p>
+              <div class="guide-step-body">
+                <div class="guide-step-header">
+                  <span class="step-title">Procesamiento Automático</span>
+                </div>
+                <p class="step-desc">El video se analizará solo. La app detectará el momento del despegue y aterrizaje.</p>
+              </div>
             </div>
 
             <div class="guide-step-card">
-              <div class="guide-step-header">
+              <div class="guide-step-left">
                 <span class="step-number">4</span>
                 <span class="step-icon">🚀</span>
-                <span class="step-title">Resultados</span>
               </div>
-              <p class="step-desc">Una vez procesado, la app calculará tus <strong>cm alcanzados</strong> de forma precisa.</p>
+              <div class="guide-step-body">
+                <div class="guide-step-header">
+                  <span class="step-title">Resultados</span>
+                </div>
+                <p class="step-desc">Una vez procesado, la app calculará tus <strong>cm alcanzados</strong> de forma precisa.</p>
+              </div>
             </div>
           </div>
           <div class="guide-tip">
